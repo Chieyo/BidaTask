@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
+import 'signup_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -17,8 +18,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   }
 
   void _signUpPressed() {
-    // TODO: Navigate to sign up screen
-    print('Sign Up button pressed');
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => SignupScreen()),
+    );
   }
 
   @override

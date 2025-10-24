@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -8,15 +9,18 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  void _signUpPressed() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => SignupScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get screen dimensions
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
-
-    // Calculate top position as a percentage of screen height
-    final topPosition =
-        screenHeight * 0.32; // Approximately 259/812 of the screen height
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -194,9 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           TextButton(
-                            onPressed: () {
-                              // TODO: Navigate to register screen
-                            },
+                            onPressed: _signUpPressed,
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 4,
