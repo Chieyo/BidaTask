@@ -40,7 +40,11 @@ class _SignupScreenState extends State<SignupScreen> {
     return null;
   }
 
-  void _submitForm() {
+  void _navigateToOnboarding1() {
+    Navigator.pushReplacementNamed(context, '/onboarding1');
+  }
+
+  void _submitForm() async {
     // First validate the form fields
     if (_formKey.currentState?.validate() ?? false) {
       // Then validate the terms checkbox
@@ -691,12 +695,25 @@ class _SignupScreenState extends State<SignupScreen> {
                           ),
                         ),
 
+                        // ... rest of your code ...
+
                         // Sign Up Button
                         SizedBox(
                           width: double.infinity,
                           height: 48,
                           child: ElevatedButton(
-                            onPressed: _isLoading ? null : _submitForm,
+                            onPressed: _isLoading
+                                ? null
+                                : () {
+                                    _submitForm();
+                                    // Simulate a successful signup and navigate to onboarding
+                                    if (mounted) {
+                                      Future.delayed(
+                                        const Duration(seconds: 1),
+                                        _navigateToOnboarding1,
+                                      );
+                                    }
+                                  },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xff006ffd),
                               disabledBackgroundColor: const Color(0xffa0c4ff),

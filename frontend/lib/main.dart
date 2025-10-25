@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'presentation/screens/splash_screen.dart';
+import 'presentation/screens/onboarding1_screen.dart';
+import 'presentation/screens/login_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -17,7 +19,12 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff006ffd)),
         useMaterial3: true,
       ),
-      home: const SplashPage(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const SplashPage(),
+        '/login': (context) => const LoginScreen(),
+        '/onboarding1': (context) => Onboarding1Screen(),
+      },
     );
   }
 }
