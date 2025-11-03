@@ -33,26 +33,20 @@ class UserGreeting extends StatelessWidget {
             Text(
               'Hi, $username!',
               style: GoogleFonts.poppins(
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 2),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF4CAF50).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'Trust Tier $trustTier',
-                style: GoogleFonts.poppins(
-                  fontSize: 10,
-                  color: const Color(0xFF4CAF50),
-                  fontWeight: FontWeight.w500,
-                ),
+            Text(
+              'Trust Tier $trustTier',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: Colors.white.withOpacity(0.9),
+                fontWeight: FontWeight.w500,
               ),
             ),
+
           ],
         ),
       ],

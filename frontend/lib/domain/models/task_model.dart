@@ -6,11 +6,13 @@ class Task {
   final String description;
   final double price;
   final DateTime postedTime;
-  final LatLng location;
+  final DateTime? dueDate;
+  final String location;
   final String postedBy;
   final String? imageUrl;
   final String category;
   final bool isMyTask;
+  final bool isUrgent;
 
   Task({
     required this.id,
@@ -18,11 +20,13 @@ class Task {
     required this.description,
     required this.price,
     required this.postedTime,
+    this.dueDate,
     required this.location,
     required this.postedBy,
     this.imageUrl,
     required this.category,
     this.isMyTask = false,
+    this.isUrgent = false,
   });
 
   // Helper method to calculate time ago
