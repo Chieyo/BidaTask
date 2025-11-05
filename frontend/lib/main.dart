@@ -9,6 +9,7 @@ import 'presentation/screens/onboarding4_screen.dart';
 import 'presentation/screens/onboarding5_screen.dart';
 import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/signup_screen.dart';
+import 'presentation/screens/otp_verification.dart';
 
 Future<void> main() async {
   // Ensure Flutter bindings are initialized
@@ -45,6 +46,7 @@ class MyApp extends StatelessWidget {
         '/': (context) => const SplashPage(),
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
+        '/otp-verification': (context) => const OtpVerification(),
         '/onboarding1': (context) => Onboarding1Screen(),
         '/onboarding2': (context) => Onboarding2Screen(),
         '/onboarding3': (context) => Onboarding3Screen(),

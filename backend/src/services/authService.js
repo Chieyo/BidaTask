@@ -1,5 +1,6 @@
 const supabase = require('../config/supabase');
 const jwt = require('jsonwebtoken');
+const otpService = require('./otpService');
 
 class AuthService {
   /**
@@ -58,31 +59,19 @@ class AuthService {
         throw new Error('Sign in after sign up failed - missing session data');
       }
 
-      // Store user data in database table
-      console.log('📝 Inserting user into database table...');
-      const insertData = {
-        user_id: createdUser.user.id,
-        email: createdUser.user.email,
-        full_name: userData.fullName,
-        contact_number: userData.contactNumber,
-        age: parseInt(userData.age)
-      };
-      console.log('Insert data:', JSON.stringify(insertData, null, 2));
+      // User profile is automatically created by Supabase trigger (handle_new_user)
+      console.log('✅ User profile will be created automatically by database trigger');
 
-      const { error: dbError } = await supabase
-        .from('user_profiles')
-        .insert(insertData);
-
-      if (dbError) {
-        console.error('❌ Database Insert Error:');
-        console.error('   Code:', dbError.code);
-        console.error('   Message:', dbError.message);
-        console.error('   Details:', dbError.details);
-        console.error('   Hint:', dbError.hint);
-        throw new Error(`Database error saving new user: ${dbError.message}`);
+      // Send OTP for phone verification
+      if (userData.contactNumber) {
+        try {
+          await otpService.createOTP(signInData.user.id, userData.contactNumber);
+          console.log('✅ OTP sent to user');
+        } catch (otpError) {
+          console.error('⚠️ Warning: Failed to send OTP, but signup succeeded');
+          console.error('   Error:', otpError.message);
+        }
       }
-      
-      console.log('✅ User data inserted into database table');
 
       // Generate JWT token
       const token = this.generateToken(signInData.user);
