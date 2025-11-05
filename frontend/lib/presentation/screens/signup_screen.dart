@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
+import '../../services/auth_service.dart';
 
 class SignupFormData {
   String fullName = '';
@@ -22,9 +23,18 @@ class SignupScreen extends StatefulWidget {
 class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _signupForm = SignupFormData();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   void _loginPressed() {
     Navigator.pushReplacement(
@@ -38,10 +48,6 @@ class _SignupScreenState extends State<SignupScreen> {
       return 'You must accept the terms and conditions';
     }
     return null;
-  }
-
-  void _navigateToOnboarding1() {
-    Navigator.pushReplacementNamed(context, '/onboarding1');
   }
 
   void _submitForm() async {
@@ -61,13 +67,66 @@ class _SignupScreenState extends State<SignupScreen> {
         _isLoading = true;
       });
 
-      // TODO: Implement signup logic
-      Future.delayed(const Duration(seconds: 2), () {
+      try {
+        final authService = AuthService();
+        final result = await authService.signUp(
+          email: _signupForm.email,
+          password: _signupForm.password,
+          fullName: _signupForm.fullName,
+          contactNumber: _signupForm.contactNumber,
+          age: _signupForm.age,
+        );
+
         setState(() {
           _isLoading = false;
         });
-        // Navigate to home or next screen after successful signup
-      });
+
+        if (result['success']) {
+          // Show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result['message'] ?? 'Sign up successful!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            // Navigate to onboarding
+            Navigator.pushReplacementNamed(context, '/onboarding1');
+          }
+        } else {
+          // Show error message
+          if (mounted) {
+            // Build error message with validation details if available
+            String errorMessage = result['message'] ?? 'Sign up failed';
+            if (result['errors'] != null && result['errors'] is List) {
+              final errors = result['errors'] as List;
+              if (errors.isNotEmpty) {
+                final errorList = errors.map((e) => '• ${e['msg'] ?? e.toString()}').join('\n');
+                errorMessage = '$errorMessage:\n$errorList';
+              }
+            }
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(errorMessage),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('An error occurred: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -348,9 +407,10 @@ class _SignupScreenState extends State<SignupScreen> {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your contact number';
                             }
-                            // Basic phone number validation (adjust as needed)
-                            if (value.length < 10) {
-                              return 'Please enter a valid phone number';
+                            // Match backend validation: Philippines format only
+                            // Accepts: 09XXXXXXXXX or +639XXXXXXXXX
+                            if (!RegExp(r'^(\+63|0)9\d{9}$').hasMatch(value)) {
+                              return 'Invalid format. Use 09XXXXXXXXX or +639XXXXXXXXX';
                             }
                             return null;
                           },
@@ -441,6 +501,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
+                          controller: _passwordController,
                           obscureText: _obscurePassword,
                           style: const TextStyle(
                             fontSize: 14,
@@ -504,8 +565,14 @@ class _SignupScreenState extends State<SignupScreen> {
                             if (value == null || value.isEmpty) {
                               return 'Please enter a password';
                             }
-                            if (value.length < 6) {
-                              return 'Password must be at least 6 characters';
+                            if (value.length < 8) {
+                              return 'Password must be at least 8 characters';
+                            }
+                            // Check for uppercase, lowercase, number, and special character
+                            if (!RegExp(
+                              r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&._\-])',
+                            ).hasMatch(value)) {
+                              return 'Must have uppercase, lowercase, number & special char (@\$!%*?&._-)';
                             }
                             return null;
                           },
@@ -515,8 +582,17 @@ class _SignupScreenState extends State<SignupScreen> {
                         const SizedBox(height: 12),
 
                         // Confirm Password Field
-                        const SizedBox(height: 12),
+                        const Text(
+                          'Confirm Password',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xff2e3036),
+                            fontWeight: FontWeight.normal,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         TextFormField(
+                          controller: _confirmPasswordController,
                           obscureText: _obscureConfirmPassword,
                           style: const TextStyle(
                             fontSize: 14,
@@ -581,7 +657,8 @@ class _SignupScreenState extends State<SignupScreen> {
                             if (value == null || value.isEmpty) {
                               return 'Please confirm your password';
                             }
-                            if (value != _signupForm.password) {
+                            // Compare with actual password field input
+                            if (value != _passwordController.text) {
                               return 'Passwords do not match';
                             }
                             return null;
@@ -702,18 +779,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           width: double.infinity,
                           height: 48,
                           child: ElevatedButton(
-                            onPressed: _isLoading
-                                ? null
-                                : () {
-                                    _submitForm();
-                                    // Simulate a successful signup and navigate to onboarding
-                                    if (mounted) {
-                                      Future.delayed(
-                                        const Duration(seconds: 1),
-                                        _navigateToOnboarding1,
-                                      );
-                                    }
-                                  },
+                            onPressed: _isLoading ? null : _submitForm,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xff006ffd),
                               disabledBackgroundColor: const Color(0xffa0c4ff),
