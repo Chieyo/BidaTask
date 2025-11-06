@@ -6,86 +6,85 @@ class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
 
   @override
-  State<NotificationScreen> createState() => _NotificationScreenState();
+  NotificationScreenState createState() => NotificationScreenState();
 }
 
-class _NotificationScreenState extends State<NotificationScreen> {
-  final List<NotificationItem> notifications = [
-    NotificationItem(
-      id: '1',
-      title: 'Task Accepted',
-      message: 'You have accepted the task: Clean the garden',
-      timeAgo: '10 min ago',
-      isRead: false,
-      type: NotificationType.success,
-    ),
-    NotificationItem(
-      id: '2',
-      title: 'Task Completed',
-      message: 'Dingding A has marked "Take a photo" as completed',
-      timeAgo: '1 hour ago',
-      isRead: true,
-      type: NotificationType.success,
-    ),
-    NotificationItem(
-      id: '3',
-      title: 'Task Overdue',
-      message: '"Buy rose bouquet" is due in 1 hour',
-      timeAgo: '5 hours ago',
-      isRead: false,
-      type: NotificationType.warning,
-    ),
-    NotificationItem(
-      id: '4',
-      title: 'Task Update',
-      message: 'New comment on "Sort documents" from Reantazo J',
-      timeAgo: '1 day ago',
-      isRead: true,
-      type: NotificationType.info,
-    ),
-    NotificationItem(
-      id: '5',
-      title: 'New Task Assigned',
-      message: 'You have been assigned to "Review project proposal"',
-      timeAgo: '2 days ago',
-      isRead: false,
-      type: NotificationType.info,
-    ),
-    NotificationItem(
-      id: '6',
-      title: 'Tasks Near You',
-      message: '3 tasks available within 1km of your location',
-      timeAgo: 'Just now',
-      isRead: false,
-      type: NotificationType.info,
-    ),
-    NotificationItem(
-      id: '7',
-      title: 'Task Nearby',
-      message: '"Deliver package to Espana Blvd." is 200m away',
-      timeAgo: '30 min ago',
-      isRead: false,
-      type: NotificationType.info,
-    ),
-    NotificationItem(
-      id: '8',
-      title: 'Location-Based Task',
-      message: 'You\'re near the office - consider completing "Office supply restock"',
-      timeAgo: '1 hour ago',
-      isRead: true,
-      type: NotificationType.info,
-    ),
-  ];
+class NotificationScreenState extends State<NotificationScreen> {
+  late List<NotificationItem> _notifications;
+  
+  @override
+  void initState() {
+    super.initState();
+    _initializeNotifications();
+  }
+
+  void _initializeNotifications() {
+    _notifications = [
+      NotificationItem(
+        id: '1',
+        title: 'Task Accepted',
+        message: 'You have accepted the task: Clean the garden',
+        timeAgo: '10 min ago',
+        isRead: false,
+        type: NotificationType.success,
+      ),
+      NotificationItem(
+        id: '2',
+        title: 'Task Completed',
+        message: 'Dingding A has marked "Take a photo" as completed',
+        timeAgo: '1 hour ago',
+        isRead: true,
+        type: NotificationType.success,
+      ),
+      NotificationItem(
+        id: '3',
+        title: 'Task Overdue',
+        message: '"Buy rose bouquet" is due in 1 hour',
+        timeAgo: '5 hours ago',
+        isRead: false,
+        type: NotificationType.warning,
+      ),
+      NotificationItem(
+        id: '4',
+        title: 'Task Update',
+        message: 'New comment on "Sort documents" from Reantazo J',
+        timeAgo: '1 day ago',
+        isRead: true,
+        type: NotificationType.info,
+      ),
+      NotificationItem(
+        id: '5',
+        title: 'New Task Assigned',
+        message: 'You have been assigned to "Review project proposal"',
+        timeAgo: '2 days ago',
+        isRead: false,
+        type: NotificationType.info,
+      ),
+    ];
+  }
 
   void _markAllAsRead() {
+    if (!mounted) return;
+    
     setState(() {
-      for (var notification in notifications) {
-        notification.isRead = true;
-      }
+      _notifications = _notifications.map((notification) => 
+        notification.copyWith(isRead: true)
+      ).toList();
     });
+    
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('All notifications marked as read')),
     );
+  }
+
+  void _onNotificationTap(int index) {
+    if (!mounted) return;
+    
+    setState(() {
+      _notifications = List<NotificationItem>.from(_notifications);
+      _notifications[index] = _notifications[index].copyWith(isRead: true);
+    });
   }
 
   @override
@@ -104,16 +103,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ],
       ),
       body: ListView.builder(
-        itemCount: notifications.length,
+        itemCount: _notifications.length,
         itemBuilder: (context, index) {
-          final notification = notifications[index];
+          final notification = _notifications[index];
           return NotificationTile(
             notification: notification,
-            onTap: () {
-              setState(() {
-                notification.isRead = true;
-              });
-            },
+            onTap: () => _onNotificationTap(index),
           );
         },
       ),

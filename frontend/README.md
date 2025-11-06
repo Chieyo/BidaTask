@@ -1,53 +1,16 @@
-# BidaTask Frontend
+# frontend
 
-Flutter mobile application for the BidaTask crowdsourcing errand service.
+A new Flutter project.
 
-## Tech Stack
-- **Framework**: Flutter
-- **Architecture**: Clean Architecture (Domain, Data, Presentation layers)
-- **State Management**: TBD
-- **API Integration**: REST API
+## Getting Started
 
-## Folder Structure
+This project is a starting point for a Flutter application.
 
-### `/lib/core`
-Core utilities, constants, themes, and shared resources used across the app.
+A few resources to get you started if this is your first Flutter project:
 
-### `/lib/data`
-Data layer containing:
-- Repositories (implementation)
-- Data sources (remote API, local storage)
-- DTOs (Data Transfer Objects)
+- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
 
-### `/lib/domain`
-Business logic layer containing:
-- Entities (business models)
-- Use cases (business operations)
-- Repository interfaces
-
-### `/lib/presentation`
-UI layer containing:
-- Screens/Pages
-- Widgets (reusable UI components)
-- State management (BLoC/Provider/Riverpod)
-- View models
-
-### `/lib/services`
-External service integrations:
-- API client
-- Push notifications (AWS SNS)
-- Payment gateway (PayMongo)
-- Location services
-
-### `/assets`
-Static resources:
-- Images
-- Icons
-- Fonts
-- Localization files
-
-### `/test`
-Unit tests, widget tests, and integration tests.
-
-## Setup Instructions
-TBD - Will be added during implementation phase.
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
