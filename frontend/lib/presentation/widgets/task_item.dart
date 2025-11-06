@@ -160,7 +160,6 @@ class TaskItem extends StatelessWidget {
       case TaskStatus.cancelled:
         return const Color(0xFFF44336);
       case TaskStatus.notStarted:
-      default:
         return const Color(0xFFFF9800);
     }
   }
@@ -174,7 +173,6 @@ class TaskItem extends StatelessWidget {
       case TaskStatus.cancelled:
         return Icons.cancel_outlined;
       case TaskStatus.notStarted:
-      default:
         return Icons.access_time;
     }
   }

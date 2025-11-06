@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../../domain/models/task.dart';
 import '../../../domain/enums/task_status.dart';
-import '../../core/utils/date_utils.dart' as date_utils;
 
 class TaskForm extends StatefulWidget {
   final Task? initialTask;
@@ -35,7 +33,7 @@ class _TaskFormState extends State<TaskForm> {
     _titleController = TextEditingController(text: _editingTask?.title ?? '');
     _descriptionController = TextEditingController(text: _editingTask?.description ?? '');
     _assignedToController = TextEditingController(text: _editingTask?.assignedTo ?? '');
-    _selectedDate = _editingTask?.dueDate;
+    _selectedDate = _editingTask?.dueDate ?? DateTime.now().add(const Duration(days: 1));
   }
 
   @override
@@ -76,6 +74,7 @@ class _TaskFormState extends State<TaskForm> {
 
   void _submitForm() {
     if (!_formKey.currentState!.validate()) return;
+    
     if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a due date and time')),
@@ -83,18 +82,40 @@ class _TaskFormState extends State<TaskForm> {
       return;
     }
 
-    final task = Task(
-      id: _editingTask?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      title: _titleController.text,
-      author: _editingTask?.author ?? 'You',
-      dueDate: _selectedDate!,
-      status: _editingTask?.status ?? TaskStatus.notStarted,
-      isPostedByMe: true,
-      assignedTo: _assignedToController.text.isNotEmpty ? _assignedToController.text : null,
-      description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
-    );
+    // Validate that the due date is in the future
+    if (_selectedDate!.isBefore(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Due date must be in the future')),
+      );
+      return;
+    }
 
-    widget.onSubmit(task);
+    try {
+      final task = Task(
+        id: _editingTask?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        title: _titleController.text.trim(),
+        author: _editingTask?.author ?? 'You',
+        dueDate: _selectedDate!,
+        status: _editingTask?.status ?? TaskStatus.notStarted,
+        isPostedByMe: true,
+        assignedTo: _assignedToController.text.trim().isNotEmpty 
+            ? _assignedToController.text.trim() 
+            : null,
+        description: _descriptionController.text.trim().isNotEmpty 
+            ? _descriptionController.text.trim() 
+            : null,
+      );
+
+      widget.onSubmit(task);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating task: ${e.toString()}')),
+      );
+    }
+  }
+
+  String _formatDateTime(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -106,59 +127,68 @@ class _TaskFormState extends State<TaskForm> {
         child: Form(
           key: _formKey,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                _editingTask == null ? 'Add New Task' : 'Edit Task',
-                style: Theme.of(context).textTheme.headline6,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(
                   labelText: 'Task Title *',
                   border: OutlineInputBorder(),
+                  hintText: 'Enter task title',
                 ),
+                textInputAction: TextInputAction.next,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a title';
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a task title';
                   }
                   return null;
                 },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _descriptionController,
-                maxLines: 3,
                 decoration: const InputDecoration(
-                  labelText: 'Description',
+                  labelText: 'Description (Optional)',
                   border: OutlineInputBorder(),
+                  hintText: 'Enter task description',
                   alignLabelWithHint: true,
                 ),
+                maxLines: 3,
+                textInputAction: TextInputAction.next,
+                keyboardType: TextInputType.multiline,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _assignedToController,
                 decoration: const InputDecoration(
-                  labelText: 'Assign To (optional)',
+                  labelText: 'Assign To (Optional)',
                   border: OutlineInputBorder(),
+                  hintText: 'Enter assignee name',
                 ),
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _submitForm(),
               ),
-              const SizedBox(height: 12),
-              ListTile(
-                title: Text(
-                  _selectedDate == null
-                      ? 'Select Due Date & Time *'
-                      : 'Due: ${date_utils.formatDate(_selectedDate!)} ${date_utils.formatTime(_selectedDate!)}',
-                ),
-                trailing: const Icon(Icons.calendar_today),
+              const SizedBox(height: 16),
+              InkWell(
                 onTap: () => _selectDateTime(context),
-                tileColor: Colors.grey[50],
-                shape: RoundedRectangleBorder(
-                  side: BorderSide(color: Colors.grey[300]!), 
-                  borderRadius: BorderRadius.circular(4),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Due Date & Time *',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _selectedDate != null 
+                            ? _formatDateTime(_selectedDate!)
+                            : 'Select date and time',
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      const Icon(Icons.calendar_today, size: 20),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -172,7 +202,13 @@ class _TaskFormState extends State<TaskForm> {
                   const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: _submitForm,
-                    child: Text(_editingTask == null ? 'ADD TASK' : 'SAVE CHANGES'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    child: Text(
+                      _editingTask == null ? 'ADD TASK' : 'SAVE CHANGES',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),

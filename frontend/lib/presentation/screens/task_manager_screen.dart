@@ -13,10 +13,12 @@ class TaskManagerScreen extends StatefulWidget {
 }
 
 class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  late List<Task> _tasks;
+  late final TabController _tabController;
+  List<Task> _tasks = [];
   bool _showTaskForm = false;
   Task? _editingTask;
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -25,9 +27,18 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTicker
     _loadTasks();
   }
 
-  void _loadTasks() {
-    setState(() {
-      _tasks = [
+  Future<void> _loadTasks() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      // Simulate network delay
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // In a real app, this would be an API call
+      final tasks = [
         Task(
           id: '1',
           title: 'Clean the garden',
@@ -68,7 +79,21 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTicker
           description: 'Task marked as completed. Awaiting review.',
         ),
       ];
-    });
+
+      if (mounted) {
+        setState(() {
+          _tasks = tasks;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load tasks. Please try again.';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -264,13 +289,44 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTicker
       task.dueDate.isAfter(DateTime.now().add(const Duration(days: 1)))
     ).toList();
 
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.red, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadTasks,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
           'Task Manager',
           style: GoogleFonts.poppins(
+            fontSize: 20,
             fontWeight: FontWeight.w600,
-            fontSize: 24,
+            color: Colors.black87,
           ),
         ),
         actions: [

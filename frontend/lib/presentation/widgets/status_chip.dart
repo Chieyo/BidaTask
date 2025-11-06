@@ -37,8 +37,7 @@ class StatusChip extends StatelessWidget {
       case TaskStatus.cancelled:
         return const Color(0xFFF44336);
       case TaskStatus.notStarted:
-      default:
-        return const Color(0xFFFF9800); 
+        return const Color(0xFFFF9800);
     }
   }
 }
