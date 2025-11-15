@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'presentation/screens/home/home_feed_screen.dart';
+import 'presentation/screens/splash_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -12,8 +12,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'BidaTask',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff006ffd)),
+        useMaterial3: true,
         scaffoldBackgroundColor: Colors.transparent,
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
@@ -30,7 +32,7 @@ class MyApp extends StatelessWidget {
           backgroundColor: Colors.transparent,
         ),
       ),
-      home: const HomeFeedScreen(),
+      home: const SplashPage(),
     );
   }
 }
