@@ -86,4 +86,45 @@ Backend tests:
 TBD - Will be added during implementation phase (consider using Swagger/OpenAPI).
 
 ## Setup Instructions
-TBD - Will be added during implementation phase.
+
+### Prerequisites
+- Node.js >= 18.0.0
+- npm >= 9.0.0
+- Supabase account and project
+
+### Installation
+
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment variables**
+   - Copy `.env.example` to `.env`
+   - Update the following required variables in `.env`:
+     - `SUPABASE_URL`: Your Supabase project URL
+     - `SUPABASE_ANON_KEY`: Your Supabase anon key
+     - `SUPABASE_SERVICE_KEY`: Your Supabase service role key
+     - `JWT_SECRET`: A secure random string for JWT signing
+
+3. **Run the development server**
+   ```bash
+   npm run dev
+   ```
+
+4. **Run the production server**
+   ```bash
+   npm start
+   ```
+
+5. **Test the API**
+   - Health check: `http://localhost:3000/health`
+
+### Available Scripts
+
+- `npm start` - Start production server
+- `npm run dev` - Start development server with auto-reload
+- `npm test` - Run tests with coverage
+- `npm run test:watch` - Run tests in watch mode
+- `npm run lint` - Check code style
+- `npm run lint:fix` - Fix code style issues
