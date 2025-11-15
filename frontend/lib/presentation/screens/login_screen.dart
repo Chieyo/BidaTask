@@ -38,8 +38,10 @@ class _LoginScreenState extends State<LoginScreen> {
       // TODO: Implement actual login logic here
       await Future.delayed(const Duration(seconds: 2)); // Simulate network call
 
-      // Navigate to home screen on success
-      // Navigator.pushReplacementNamed(context, '/home');
+      // Navigate to onboarding screen on success
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/onboarding1');
+      }
     } catch (e) {
       // Show error message
       if (mounted) {
