@@ -162,7 +162,6 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
               ],
             ),
           ),
-          
           // Category chips
           SizedBox(
             height: 40,
@@ -180,6 +179,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
                       color: isSelected ? const Color(0xFFFFD700) : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                     ),
+
                     child: Text(
                       categories[index],
                       style: GoogleFonts.poppins(
@@ -243,7 +243,6 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
               },
             ),
           
-          // Removed View More button since we have See All
         ],
       ),
     );
