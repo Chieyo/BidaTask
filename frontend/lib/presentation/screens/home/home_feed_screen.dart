@@ -201,7 +201,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.only(bottom: 24), // Added bottom margin
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: const Color.fromRGBO(255, 255, 255, 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
@@ -266,7 +266,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: const Color.fromRGBO(0, 0, 0, 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -305,49 +305,6 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
     );
   }
 
-  Widget _buildTasksList(List<Task> tasks) {
-    if (tasks.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(
-          child: Text(
-            'No tasks found',
-            style: GoogleFonts.poppins(
-              color: Colors.white70,
-              fontSize: 16,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: tasks.length,
-      itemBuilder: (context, index) {
-        return TaskNearYouCard(
-          task: tasks[index],
-          onTap: () {
-            // Handle task tap
-          },
-          onTakeTask: () {
-            // Handle take task
-          },
-        );
-      },
-    );
-  }
 
   Widget _buildBottomNavigationBar() {
     return Container(
@@ -357,7 +314,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: const Color.fromRGBO(0, 0, 0, 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

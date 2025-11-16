@@ -71,7 +71,7 @@ class _Onboarding1Screen extends State<Onboarding1Screen> {
                         fontWeight: FontWeight.bold,
                         height: 1.2,
                       ),
-                      children: const <TextSpan>[
+                      children: <TextSpan>[
                         TextSpan(text: 'Life\'s too busy for endless '),
                         TextSpan(
                           text: 'errands',

@@ -169,7 +169,7 @@ class _OtpVerification extends State<OtpVerification> {
         );
         // Show OTP in dev mode for testing
         if (result['otp'] != null) {
-          print('🔑 DEV MODE - OTP Code: ${result['otp']}');
+          debugPrint('🔑 DEV MODE - OTP Code: ${result['otp']}');
         }
       }
     } catch (e) {

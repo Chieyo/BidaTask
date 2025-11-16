@@ -70,7 +70,7 @@ class _Onboarding5Screen extends State<Onboarding5Screen> {
                         fontWeight: FontWeight.bold,
                         height: 1.2,
                       ),
-                      children: const <TextSpan>[
+                      children: <TextSpan>[
                         TextSpan(text: 'Help made '),
                         TextSpan(
                           text: 'safe ',

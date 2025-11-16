@@ -63,7 +63,7 @@ class _AllTasksScreenState extends State<AllTasksScreen> {
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFFFFD700) : Colors.white.withOpacity(0.2),
+                        color: isSelected ? const Color(0xFFFFD700) : const Color.fromRGBO(255, 255, 255, 0.2),
                         borderRadius: BorderRadius.circular(20),
                         border: isSelected ? null : Border.all(color: Colors.white30),
                       ),
@@ -90,13 +90,13 @@ class _AllTasksScreenState extends State<AllTasksScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
+                          color: const Color.fromRGBO(0, 0, 0, 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           'No tasks found',
                           style: GoogleFonts.poppins(
-                            color: Colors.white70,
+                            color: const Color.fromRGBO(255, 255, 255, 0.7),
                             fontSize: 16,
                           ),
                         ),

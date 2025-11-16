@@ -71,7 +71,7 @@ class _Onboarding4Screen extends State<Onboarding4Screen> {
                         fontWeight: FontWeight.bold,
                         height: 1.2,
                       ),
-                      children: const <TextSpan>[
+                      children: <TextSpan>[
                         TextSpan(text: 'See tasks around you, '),
                         TextSpan(
                           text: 'instantly.',

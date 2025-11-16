@@ -71,7 +71,7 @@ class _Onboarding2Screen extends State<Onboarding2Screen> {
                         fontWeight: FontWeight.bold,
                         height: 1.2,
                       ),
-                      children: const <TextSpan>[
+                      children: <TextSpan>[
                         TextSpan(text: 'Post. Connect. '),
                         TextSpan(
                           text: 'Done.',

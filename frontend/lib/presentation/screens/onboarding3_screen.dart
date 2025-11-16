@@ -71,7 +71,7 @@ class _Onboarding3Screen extends State<Onboarding3Screen> {
                         fontWeight: FontWeight.bold,
                         height: 1.2,
                       ),
-                      children: const <TextSpan>[
+                      children: <TextSpan>[
                         TextSpan(text: 'Your time, your '),
                         TextSpan(
                           text: 'terms.',

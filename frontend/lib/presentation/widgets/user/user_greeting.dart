@@ -42,7 +42,7 @@ class UserGreeting extends StatelessWidget {
               'Trust Tier $trustTier',
               style: GoogleFonts.poppins(
                 fontSize: 11,
-                color: Colors.white.withOpacity(0.9),
+                color: const Color.fromRGBO(255, 255, 255, 0.9),
                 fontWeight: FontWeight.w500,
               ),
             ),

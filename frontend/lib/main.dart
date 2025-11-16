@@ -7,6 +7,7 @@ import 'presentation/screens/onboarding2_screen.dart';
 import 'presentation/screens/onboarding3_screen.dart';
 import 'presentation/screens/onboarding4_screen.dart';
 import 'presentation/screens/onboarding5_screen.dart';
+import 'presentation/screens/welcome_screen.dart';
 import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/signup_screen.dart';
 import 'presentation/screens/otp_verification.dart';
@@ -67,6 +68,7 @@ class MyApp extends StatelessWidget {
         '/onboarding3': (context) => Onboarding3Screen(),
         '/onboarding4': (context) => Onboarding4Screen(),
         '/onboarding5': (context) => Onboarding5Screen(),
+        '/welcome': (context) => const WelcomeScreen(),
       },
     );
   }

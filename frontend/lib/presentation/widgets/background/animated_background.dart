@@ -12,10 +12,10 @@ class AnimatedBackground extends StatefulWidget {
   });
 
   @override
-  _AnimatedBackgroundState createState() => _AnimatedBackgroundState();
+  AnimatedBackgroundState createState() => AnimatedBackgroundState();
 }
 
-class _AnimatedBackgroundState extends State<AnimatedBackground>
+class AnimatedBackgroundState extends State<AnimatedBackground>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   final List<Dot> _dots = [];
@@ -103,7 +103,7 @@ class DotsPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withOpacity(0.7);
+    final paint = Paint()..color = const Color.fromRGBO(255, 255, 255, 0.7);
 
     for (var dot in dots) {
       // Update dot position
@@ -115,7 +115,7 @@ class DotsPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(x, y),
         dot.size,
-        paint..color = paint.color.withOpacity(dot.opacity),
+        paint..color = Color.fromRGBO(255, 255, 255, dot.opacity),
       );
     }
   }
