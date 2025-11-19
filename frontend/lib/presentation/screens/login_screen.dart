@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'signup_screen.dart';
 import '../../services/auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -78,6 +79,34 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    try {
+      setState(() => _isLoading = true);
+      await Supabase.instance.client.auth.signInWithOAuth(OAuthProvider.google);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google sign-in successful'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pushReplacementNamed(context, '/onboarding1');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Google sign-in failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -417,9 +446,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 16),
                         // Google Button
                         ElevatedButton(
-                          onPressed: () {
-                            // TODO: Handle Google sign in
-                          },
+                          onPressed: _isLoading ? null : _signInWithGoogle,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             minimumSize: const Size(double.infinity, 48),
