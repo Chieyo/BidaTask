@@ -51,7 +51,9 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             ),
             IconButton(
               icon: const Icon(Icons.notifications_none, color: Colors.white),
-              onPressed: () {},
+              onPressed: () {
+                Navigator.pushNamed(context, '/task-manager');
+              },
             ),
             const SizedBox(width: 8),
           ],
@@ -374,10 +376,12 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             if (index == 1) {
               // Map
               Navigator.pushNamed(context, '/map');
-            }
-            else if (index == 2) {
+            } else if (index == 2) {
               // New Task (golden + icon)
               Navigator.pushNamed(context, '/create-task');
+            } else if (index == 3) {
+              // Tasks / Task Manager
+              Navigator.pushNamed(context, '/task-manager');
             }
           },
           type: BottomNavigationBarType.fixed,
