@@ -371,7 +371,11 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             setState(() {
               _selectedIndex = index;
             });
-            if (index == 2) {
+            if (index == 1) {
+              // Map
+              Navigator.pushNamed(context, '/map');
+            }
+            else if (index == 2) {
               // New Task (golden + icon)
               Navigator.pushNamed(context, '/create-task');
             }

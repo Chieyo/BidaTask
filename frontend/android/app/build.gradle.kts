@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
-    id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -9,6 +8,10 @@ android {
     namespace = "com.bidatask.bidatask"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
+    
+    buildFeatures {
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -20,14 +23,19 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // Enable multidex support
         applicationId = "com.bidatask.bidatask"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = 35
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionCode = flutter.versionCode?.toInt() ?: 1
+        versionName = flutter.versionName ?: "1.0.0"
+        multiDexEnabled = true
+        
+        // Add vector drawable support
+        vectorDrawables.useSupportLibrary = true
+        
+        // Add build config fields
+        buildConfigField("String", "BUILD_TIME", "\"${System.currentTimeMillis()}\"")
     }
 
     buildTypes {
@@ -41,4 +49,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Ensure a recent AndroidX Core version so EditorInfoCompat has setStylusHandwritingEnabled
+    implementation("androidx.core:core-ktx:1.13.1")
 }

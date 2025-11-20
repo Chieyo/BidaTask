@@ -14,6 +14,7 @@ import 'presentation/screens/signup_screen.dart';
 import 'presentation/screens/otp_verification.dart';
 import 'presentation/screens/home/home_feed_screen.dart';
 import 'presentation/screens/create_task_screen.dart';
+import 'features/map/screens/map_screen.dart';
 
 Future<void> main() async {
   // Ensure Flutter bindings are initialized
@@ -102,7 +103,7 @@ class MyApp extends StatelessWidget {
         '/welcome': (context) => const WelcomeScreen(),
         '/home': (context) => const HomeFeedScreen(),
         '/create-task': (context) => const CreateTaskScreen(),
-        
+        '/map': (context) => const MapScreen(),
       },
     );
   }
