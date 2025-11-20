@@ -58,8 +58,12 @@ dependencies:
   flutter_dotenv: ^6.0.0
   
   # Location Services
-  geolocator: ^10.1.0
+  geolocator: ^14.0.2
   google_maps_flutter: ^2.5.0
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
+  geocoding: ^4.0.0
+  url_launcher: ^6.3.2
   
   # Utils
   logger: ^2.0.2+1

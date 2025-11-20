@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'presentation/screens/splash_screen.dart';
 import 'presentation/screens/onboarding1_screen.dart';
 import 'presentation/screens/onboarding2_screen.dart';
@@ -12,6 +13,7 @@ import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/signup_screen.dart';
 import 'presentation/screens/otp_verification.dart';
 import 'presentation/screens/home/home_feed_screen.dart';
+import 'presentation/screens/create_task_screen.dart';
 
 Future<void> main() async {
   // Ensure Flutter bindings are initialized
@@ -57,6 +59,34 @@ class MyApp extends StatelessWidget {
           elevation: 0,
           backgroundColor: Colors.transparent,
         ),
+        textTheme: GoogleFonts.poppinsTextTheme(),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12.0),
+            borderSide: const BorderSide(color: Colors.grey),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12.0),
+            borderSide: const BorderSide(color: Colors.grey),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12.0),
+            borderSide: const BorderSide(color: Colors.blue, width: 2.0),
+          ),
+          filled: true,
+          fillColor: Colors.grey[50],
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.0),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+          ),
+        ),
       ),
       initialRoute: '/',
       routes: {
@@ -71,6 +101,8 @@ class MyApp extends StatelessWidget {
         '/onboarding5': (context) => Onboarding5Screen(),
         '/welcome': (context) => const WelcomeScreen(),
         '/home': (context) => const HomeFeedScreen(),
+        '/create-task': (context) => const CreateTaskScreen(),
+        
       },
     );
   }

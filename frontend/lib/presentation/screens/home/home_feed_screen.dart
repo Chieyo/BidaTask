@@ -305,6 +305,49 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
     );
   }
 
+  Widget _buildTasksList(List<Task> tasks) {
+    if (tasks.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Center(
+          child: Text(
+            'No tasks found',
+            style: GoogleFonts.poppins(
+              color: Colors.white70,
+              fontSize: 16,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: tasks.length,
+      itemBuilder: (context, index) {
+        return TaskNearYouCard(
+          task: tasks[index],
+          onTap: () {
+            // Handle task tap
+          },
+          onTakeTask: () {
+            // Handle take task
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildBottomNavigationBar() {
     return Container(
@@ -328,7 +371,10 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             setState(() {
               _selectedIndex = index;
             });
-            // Add navigation logic here if needed
+            if (index == 2) {
+              // New Task (golden + icon)
+              Navigator.pushNamed(context, '/create-task');
+            }
           },
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
