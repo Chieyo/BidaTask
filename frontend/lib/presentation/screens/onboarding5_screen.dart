@@ -30,12 +30,17 @@ class _Onboarding5Screen extends State<Onboarding5Screen> {
             Positioned(
               right: 20,
               top: 50,
-              child: Text(
-                'Skip',
-                style: TextStyle(
-                  color: const Color(0xffadb2b9),
-                  fontSize: 18,
-                  fontFamily: 'Satoshi-Medium',
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/home');
+                },
+                child: Text(
+                  'Skip',
+                  style: TextStyle(
+                    color: const Color(0xffadb2b9),
+                    fontSize: 18,
+                    fontFamily: 'Satoshi-Medium',
+                  ),
                 ),
               ),
             ),
@@ -133,7 +138,7 @@ class _Onboarding5Screen extends State<Onboarding5Screen> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Add navigation to the next screen
+                    Navigator.pushReplacementNamed(context, '/home');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xff006ffd),

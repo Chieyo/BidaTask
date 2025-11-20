@@ -31,12 +31,17 @@ class _Onboarding3Screen extends State<Onboarding3Screen> {
             Positioned(
               right: 20,
               top: 50,
-              child: Text(
-                'Skip',
-                style: TextStyle(
-                  color: const Color(0xffadb2b9),
-                  fontSize: 18,
-                  fontFamily: 'Satoshi-Medium',
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/home');
+                },
+                child: Text(
+                  'Skip',
+                  style: TextStyle(
+                    color: const Color(0xffadb2b9),
+                    fontSize: 18,
+                    fontFamily: 'Satoshi-Medium',
+                  ),
                 ),
               ),
             ),
