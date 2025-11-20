@@ -16,6 +16,7 @@ import 'presentation/screens/home/home_feed_screen.dart';
 import 'presentation/screens/create_task_screen.dart';
 import 'features/map/screens/map_screen.dart';
 import 'presentation/screens/task_manager_screen.dart';
+import 'presentation/screens/notifications_screen.dart';
 
 Future<void> main() async {
   // Ensure Flutter bindings are initialized
@@ -106,6 +107,7 @@ class MyApp extends StatelessWidget {
         '/create-task': (context) => const CreateTaskScreen(),
         '/map': (context) => const MapScreen(),
         '/task-manager': (context) => const TaskManagerScreen(),
+        '/notifications': (context) => const NotificationScreen(),
       },
     );
   }

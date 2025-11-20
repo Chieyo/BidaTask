@@ -52,7 +52,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             IconButton(
               icon: const Icon(Icons.notifications_none, color: Colors.white),
               onPressed: () {
-                Navigator.pushNamed(context, '/task-manager');
+                Navigator.pushNamed(context, '/notifications');
               },
             ),
             const SizedBox(width: 8),
