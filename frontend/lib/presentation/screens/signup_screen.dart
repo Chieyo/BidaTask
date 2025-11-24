@@ -86,19 +86,12 @@ class _SignupScreenState extends State<SignupScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(result['message'] ?? 'Sign up successful! Please verify your phone number.'),
+                content: Text(result['message'] ?? 'Sign up successful!'),
                 backgroundColor: Colors.green,
               ),
             );
-            // Navigate to OTP verification
-            Navigator.pushReplacementNamed(
-              context,
-              '/otp-verification',
-              arguments: {
-                'contactNumber': _signupForm.contactNumber,
-                'userId': result['user']?['id'],
-              },
-            );
+            // Navigate to onboarding
+            Navigator.pushReplacementNamed(context, '/onboarding1');
           }
         } else {
           // Show error message
@@ -108,7 +101,9 @@ class _SignupScreenState extends State<SignupScreen> {
             if (result['errors'] != null && result['errors'] is List) {
               final errors = result['errors'] as List;
               if (errors.isNotEmpty) {
-                final errorList = errors.map((e) => '• ${e['msg'] ?? e.toString()}').join('\n');
+                final errorList = errors
+                    .map((e) => '• ${e['msg'] ?? e.toString()}')
+                    .join('\n');
                 errorMessage = '$errorMessage:\n$errorList';
               }
             }

@@ -24,10 +24,28 @@ Future<void> main() async {
     anonKey: dotenv.get('SUPABASE_ANON_KEY'),
   );
 
+  // Listen for auth state changes
+  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    final AuthChangeEvent event = data.event;
+    final Session? session = data.session;
+
+    print('Auth state changed: $event');
+    print('Session: ${session != null ? 'Active' : 'Null'}');
+
+    if (event == AuthChangeEvent.signedIn && session != null) {
+      // User successfully signed in, navigate to onboarding
+      print('User signed in, navigating to onboarding');
+      navigatorKey.currentState?.pushReplacementNamed('/home');
+    }
+  });
+
   runApp(const MyApp());
 }
 
 final supabase = Supabase.instance.client;
+
+// Global navigator key for deep linking
+final navigatorKey = GlobalKey<NavigatorState>();
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -35,6 +53,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'BidaTask',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
