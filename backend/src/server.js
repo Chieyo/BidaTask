@@ -43,12 +43,13 @@ app.get('/health', (req, res) => {
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const otpRoutes = require('./routes/otpRoutes');
+const taskRoutes = require('./routes/createTaskRoutes');
 
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/otp', otpRoutes);
 // app.use('/api/users', userRoutes);
-// app.use('/api/tasks', taskRoutes);
+app.use('/api/tasks', taskRoutes);
 // app.use('/api/bids', bidRoutes);
 // app.use('/api/payments', paymentRoutes);
 // app.use('/api/notifications', notificationRoutes);

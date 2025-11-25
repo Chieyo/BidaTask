@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart' as latlng;
 import 'package:geocoding/geocoding.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../services/task_service.dart';
 
 class CreateTaskScreen extends StatefulWidget {
   const CreateTaskScreen({super.key});
@@ -31,17 +32,17 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   final MapController _mapController = MapController();
 
   final List<Map<String, dynamic>> _categories = [
-    {'value': 'delivery', 'label': 'Delivery', 'icon': Icons.local_shipping},
-    {'value': 'shopping', 'label': 'Shopping', 'icon': Icons.shopping_cart},
-    {'value': 'chores', 'label': 'Chores', 'icon': Icons.cleaning_services},
-    {'value': 'online_task', 'label': 'Online Tasks', 'icon': Icons.cleaning_services},
-    {'value': 'general_assitance', 'label': 'General Assitance', 'icon': Icons.cleaning_services},
-    {'value': 'other', 'label': 'Other', 'icon': Icons.more_horiz},
+    {'value': 'Delivery', 'label': 'Delivery', 'icon': Icons.local_shipping},
+    {'value': 'Shopping', 'label': 'Shopping', 'icon': Icons.shopping_cart},
+    {'value': 'Household_Chores', 'label': 'Household Chores', 'icon': Icons.cleaning_services},
+    {'value': 'Online_Assistance', 'label': 'Online Assistance', 'icon': Icons.computer},
+    {'value': 'General_Assistance', 'label': 'General Assistance', 'icon': Icons.help},
+    {'value': 'Personal', 'label': 'Personal', 'icon': Icons.person},
   ];
 
   final List<Map<String, dynamic>> _priorities = [
     {'value': 'low', 'label': 'Low', 'color': Colors.green},
-    {'value': 'medium', 'label': 'Medium', 'color': Colors.orange},
+    {'value': 'normal', 'label': 'Normal', 'color': Colors.orange},
     {'value': 'high', 'label': 'High', 'color': Colors.red},
   ];
 
@@ -67,20 +68,17 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         desiredAccuracy: LocationAccuracy.high,
       );
       
-      // Update the location
       final currentLatLng = latlng.LatLng(
         position.latitude,
         position.longitude,
       );
       
-      // Update the address
       await _getAddressFromLatLng(currentLatLng);
       
-      // Update the state
       if (mounted) {
         setState(() {
           _selectedLocation = currentLatLng;
-          _useCurrentLocation = true;
+          _useCurrentLocation = true;  // Explicitly set to true
         });
       }
     } catch (e) {
@@ -245,10 +243,18 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       }
     }
   }
-  
 
-  void _handlePostTask() async {
+  Future<void> _handlePostTask() async {
     if (_formKey.currentState?.validate() ?? false) {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
       try {
         latlng.LatLng finalLocation;
         
@@ -256,29 +262,66 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
           // Get current position if "Use Current Location" is selected
           final position = await Geolocator.getCurrentPosition();
           finalLocation = latlng.LatLng(position.latitude, position.longitude);
+          
+          // Update location name for current location
+          await _getAddressFromLatLng(finalLocation);
         } else if (_selectedLocation != null) {
           // Use the manually selected location
           finalLocation = _selectedLocation!;
         } else {
           // No location selected
           if (!mounted) return;
+          Navigator.of(context).pop(); // Remove loading indicator
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Please select a location')),
           );
           return;
         }
 
-        // Proceed with task creation using finalLocation
-        debugPrint('Task Location: ${finalLocation.latitude}, ${finalLocation.longitude}');
-        
-        // Show success dialog
-        _showConfirmationDialog(context);
-        
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error getting location: ${e.toString()}')),
+        // Parse the date
+        DateTime dueDate;
+        if (_expireAfter24Hours) {
+          dueDate = DateTime.now().add(const Duration(hours: 24));
+        } else if (_dateController.text.isNotEmpty) {
+          dueDate = DateFormat('MM/dd/yyyy').parse(_dateController.text);
+        } else {
+          dueDate = DateTime.now().add(const Duration(days: 7)); // Default to 7 days from now
+        }
+
+        // Create task using TaskService
+        final TaskService _taskService = TaskService();
+        final response = await _taskService.createTask(
+          title: _taskTitleController.text.trim(),
+          description: _descriptionController.text.trim(),
+          reward: double.parse(_rewardController.text),
+          category: _selectedCategory!,
+          priority: _selectedPriority!,
+          dueDate: dueDate,
+          location: finalLocation,
+          locationName: _locationName,
         );
+
+        // Remove loading indicator
+        if (mounted) {
+          Navigator.of(context).pop();
+          
+          if (response['success'] == true) {
+            // Show success dialog
+            _showConfirmationDialog(context);
+          } else {
+            // Show error message
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(response['message'] ?? 'Failed to create task')),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.of(context).pop(); // Remove loading indicator
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${e.toString()}')),
+          );
+        }
       }
     }
   }
@@ -491,13 +534,13 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                       ),
                     );
                   }).toList(),
-                  onChanged: (String? newValue) {
+                  onChanged: (value) {
                     setState(() {
-                      _selectedCategory = newValue;
+                      _selectedCategory = value;
                     });
                   },
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null) {
                       return 'Please select a category';
                     }
                     return null;
@@ -520,7 +563,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                   maxLines: 4,
                   maxLength: 500,
                   decoration: InputDecoration(
-                    hintText: 'Add a description...',
+                    hintText: 'Describe your task in detail...',
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12.0),
@@ -535,70 +578,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter a description';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // Task Priority
-                Text(
-                  'Task Priority',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: _selectedPriority,
-                  decoration: InputDecoration(
-                    hintText: 'Choose a priority',
-                    hintStyle: TextStyle(color: Colors.grey[400]),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                  items: _priorities.map((priority) {
-                    return DropdownMenuItem<String>(
-                      value: priority['value'],
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: priority['color'],
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            priority['label'],
-                            style: GoogleFonts.poppins(fontSize: 14),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedPriority = newValue;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please select a priority';
+                      return 'Please enter a task description';
                     }
                     return null;
                   },
@@ -702,9 +682,9 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Location
+                // Priority
                 Text(
-                  'Location',
+                  'Priority',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -712,137 +692,56 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 8),
-                    // Use Current Location Button
-                    InkWell(
-                      onTap: () {
-                        // Only fetch location if not already selected
-                        if (!_useCurrentLocation) {
-                          _getCurrentLocation();
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: _useCurrentLocation ? Colors.blue.shade50 : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _useCurrentLocation 
-                                ? Colors.blue.shade300 
-                                : Colors.grey.shade300,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Radio<bool>(
-                              value: true,
-                              groupValue: _useCurrentLocation,
-                              onChanged: (value) {
-                                if (value == true) {
-                                  _getCurrentLocation();
-                                } else {
-                                  setState(() {
-                                    _useCurrentLocation = false;
-                                  });
-                                }
-                              },
-                              activeColor: Colors.blue,
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.my_location, color: Colors.blue),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Use Current Location',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                DropdownButtonFormField<String>(
+                  value: _selectedPriority,
+                  decoration: InputDecoration(
+                    hintText: 'Select priority',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
                     ),
-                    const SizedBox(height: 12),
-                    // Set Location Button
-                    InkWell(
-                      onTap: () async {
-                        final location = await _showMapDialog(context);
-                        if (location != null) {
-                          setState(() {
-                            _useCurrentLocation = false;
-                            _selectedLocation = location;
-                            _getAddressFromLatLng(location);
-                          });
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: !_useCurrentLocation && _selectedLocation != null 
-                              ? Colors.blue.shade50 
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: !_useCurrentLocation && _selectedLocation != null
-                                ? Colors.blue.shade300 
-                                : Colors.grey.shade300,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Radio<bool>(
-                              value: false,
-                              groupValue: _useCurrentLocation,
-                              onChanged: (value) {
-                                setState(() {
-                                  _useCurrentLocation = false;
-                                });
-                              },
-                              activeColor: Colors.blue,
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.location_on, color: Colors.orange),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _selectedLocation != null && !_useCurrentLocation
-                                    ? _locationName
-                                    : 'Set Location on Map',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  color: _selectedLocation != null && !_useCurrentLocation
-                                      ? Colors.black87
-                                      : Colors.grey.shade600,
-                                ),
-                              ),
-                            ),
-                            if (_selectedLocation != null && !_useCurrentLocation)
-                              IconButton(
-                                icon: const Icon(Icons.open_in_new, size: 20, color: Colors.blue),
-                                onPressed: () async {
-                                  final lat = _selectedLocation!.latitude;
-                                  final lng = _selectedLocation!.longitude;
-                                  final url = Uri.parse('https://www.openstreetmap.org/?mlat=$lat&mlon=$lng#map=16/$lat/$lng');
-                                  
-                                  if (await canLaunchUrl(url)) {
-                                    await launchUrl(
-                                      url,
-                                      mode: LaunchMode.externalApplication,
-                                    );
-                                  } else {
-                                    debugPrint('Could not launch $url');
-                                  }
-                                },
-                                tooltip: 'Open in Maps',
-                              ),
-                          ],
-                        ),
-                      ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
                     ),
-                  ],
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  items: _priorities.map((priority) {
+                    return DropdownMenuItem<String>(
+                      value: priority['value'],
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: priority['color'],
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            priority['label'],
+                            style: GoogleFonts.poppins(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedPriority = value;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null) {
+                      return 'Please select a priority';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 20),
 
@@ -932,22 +831,138 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
+
+                // Location
+                Text(
+                  'Location',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    // Use Current Location Button
+                    InkWell(
+                      onTap: () {
+                        if (!_useCurrentLocation) {
+                          _getCurrentLocation();
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _useCurrentLocation ? Colors.blue.shade50 : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _useCurrentLocation ? Colors.blue.shade300 : Colors.grey.shade300,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Radio<bool>(
+                              value: true,
+                              groupValue: _useCurrentLocation,
+                              onChanged: (value) {
+                                if (value == true) {
+                                  _getCurrentLocation();
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.my_location, color: Colors.blue),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Use Current Location',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Set Location Button
+                    InkWell(
+                      onTap: () async {
+                        final location = await _showMapDialog(context);
+                        if (location != null) {
+                          setState(() {
+                            _selectedLocation = location;
+                            _useCurrentLocation = false;  // Explicitly set to false when a location is selected
+                          });
+                          await _getAddressFromLatLng(location);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: !_useCurrentLocation ? Colors.blue.shade50 : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: !_useCurrentLocation ? Colors.blue.shade300 : Colors.grey.shade300,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Radio<bool>(
+                              value: false,
+                              groupValue: _useCurrentLocation,
+                              onChanged: (value) {
+                                // Don't toggle the radio directly, let the onTap handle it
+                                if (value == false) {
+                                  _showMapDialog(context).then((location) {
+                                    if (location != null) {
+                                      setState(() {
+                                        _selectedLocation = location;
+                                        _useCurrentLocation = false;
+                                      });
+                                      _getAddressFromLatLng(location);
+                                    }
+                                  });
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.map, color: Colors.blue),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _selectedLocation != null && !_useCurrentLocation
+                                    ? _locationName
+                                    : 'Set Location on Map',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: _selectedLocation != null && !_useCurrentLocation
+                                      ? Colors.black87
+                                      : Colors.grey.shade600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 32),
 
-                // Post Task Button
+                // Submit Button
                 ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      _showConfirmationDialog(context);
-                    }
-                  },
+                  onPressed: _handlePostTask,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 18.0),
                     elevation: 0,
                   ),
                   child: Text(
