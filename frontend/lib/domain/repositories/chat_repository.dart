@@ -10,5 +10,7 @@ abstract class ChatRepository {
   Stream<List<Message>> getMessageStream(String taskId);
   Stream<bool> getTypingIndicatorStream(String taskId);
   Future<Either<String, Chat>> getChatByTaskId(String taskId);
+  Future<Either<String, List<Chat>>> getUserChats({int limit = 50});
+  Stream<List<Chat>> getUserChatsStream({int limit = 50});
   Future<Either<String, String>> uploadImage(String taskId, String filePath);
 }

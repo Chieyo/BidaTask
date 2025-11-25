@@ -1,172 +1,147 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
 import '../../domain/entities/message.dart';
 
 class MessageBubble extends StatelessWidget {
-  final Message message;
-  final bool isFromCurrentUser;
-
   const MessageBubble({
     super.key,
     required this.message,
     required this.isFromCurrentUser,
   });
 
+  final Message message;
+  final bool isFromCurrentUser;
+
   @override
   Widget build(BuildContext context) {
+    final bubbleColor = isFromCurrentUser
+        ? const Color(0xFF007AFF)
+        : Colors.white;
+    final textColor = isFromCurrentUser ? Colors.white : const Color(0xFF101828);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: isFromCurrentUser 
-            ? MainAxisAlignment.end 
-            : MainAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      child: Column(
+        crossAxisAlignment:
+            isFromCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (!isFromCurrentUser) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundImage: message.senderAvatar != null
-                  ? CachedNetworkImageProvider(message.senderAvatar!)
-                  : null,
-              child: message.senderAvatar == null
-                  ? Text(
-                      message.senderName.isNotEmpty 
-                          ? message.senderName[0].toUpperCase()
-                          : '?',
-                      style: const TextStyle(fontSize: 16),
-                    )
-                  : null,
+          if (!isFromCurrentUser)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 4),
+              child: Text(
+                message.senderName,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: const Color(0xFF8E8E93),
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
             ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Column(
-              crossAxisAlignment: isFromCurrentUser 
-                  ? CrossAxisAlignment.end 
-                  : CrossAxisAlignment.start,
-              children: [
-                if (!isFromCurrentUser)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(
-                      message.senderName,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isFromCurrentUser
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: message.type == MessageType.text
-                      ? Text(
-                          message.content,
-                          style: TextStyle(
-                            color: isFromCurrentUser
-                                ? Colors.white
-                                : Colors.black87,
-                          ),
-                        )
-                      : message.type == MessageType.image && message.imageUrl != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: CachedNetworkImage(
-                                imageUrl: message.imageUrl!,
-                                width: 200,
-                                height: 200,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  width: 200,
-                                  height: 200,
-                                  color: Colors.grey[300],
-                                  child: const Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                ),
-                                errorWidget: (context, url, error) => Container(
-                                  width: 200,
-                                  height: 200,
-                                  color: Colors.grey[300],
-                                  child: const Icon(Icons.error),
-                                ),
-                              ),
-                            )
-                          : Container(
-                              width: 200,
-                              height: 200,
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.image),
-                            ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _formatTime(message.timestamp),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                        fontSize: 11,
-                      ),
-                    ),
-                    if (isFromCurrentUser) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        _getStatusIcon(message.status),
-                        size: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ],
-                  ],
+          Container(
+            padding: message.type == MessageType.text
+                ? const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
+                : EdgeInsets.zero,
+            constraints: const BoxConstraints(maxWidth: 280),
+            decoration: BoxDecoration(
+              color: bubbleColor,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(isFromCurrentUser ? 20 : 8),
+                topRight: Radius.circular(isFromCurrentUser ? 8 : 20),
+                bottomLeft: const Radius.circular(20),
+                bottomRight: const Radius.circular(20),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
+            child: _buildMessageContent(textColor),
           ),
-          if (isFromCurrentUser) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 16,
-              backgroundImage: message.senderAvatar != null
-                  ? CachedNetworkImageProvider(message.senderAvatar!)
-                  : null,
-              child: message.senderAvatar == null
-                  ? Text(
-                      message.senderName.isNotEmpty 
-                          ? message.senderName[0].toUpperCase()
-                          : '?',
-                      style: const TextStyle(fontSize: 16),
-                    )
-                  : null,
-            ),
-          ],
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment:
+                isFromCurrentUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              Text(
+                _formatTime(message.timestamp),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF8E8E93),
+                      fontSize: 11,
+                    ),
+              ),
+              if (isFromCurrentUser) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  _getStatusIcon(message.status),
+                  size: 12,
+                  color: const Color(0xFFB0B0B8),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
     );
   }
 
-  String _formatTime(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inHours < 1) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inDays < 1) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+  Widget _buildMessageContent(Color textColor) {
+    switch (message.type) {
+      case MessageType.text:
+        return Text(
+          message.content,
+          style: TextStyle(
+            color: textColor,
+            height: 1.4,
+          ),
+        );
+      case MessageType.image:
+        if (message.imageUrl == null) return _imagePlaceholder();
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: CachedNetworkImage(
+            imageUrl: message.imageUrl!,
+            width: 220,
+            height: 220,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => Container(
+              width: 220,
+              height: 220,
+              color: Colors.grey[200],
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+            errorWidget: (context, url, error) => _imagePlaceholder(),
+          ),
+        );
+      case MessageType.system:
+        return Text(
+          message.content,
+          style: TextStyle(
+            fontStyle: FontStyle.italic,
+            color: textColor,
+          ),
+        );
     }
+  }
+
+  Widget _imagePlaceholder() {
+    return Container(
+      width: 220,
+      height: 220,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: const Icon(Icons.image, color: Colors.grey),
+    );
+  }
+
+  String _formatTime(DateTime timestamp) {
+    return DateFormat.jm().format(timestamp);
   }
 
   IconData _getStatusIcon(MessageStatus status) {

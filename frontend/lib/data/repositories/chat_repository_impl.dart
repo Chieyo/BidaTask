@@ -276,22 +276,139 @@ class ChatRepositoryImpl implements ChatRepository {
 
       return Right(chat);
     } catch (e) {
-      return Left('Failed to get chat: $e');
+      return Left('Failed to load chats: $e');
     }
   }
 
+  @override
+  Future<Either<String, List<Chat>>> getUserChats({int limit = 50}) async {
+    try {
+      final currentUserId = _auth.currentUser?.uid;
+      if (currentUserId == null) {
+        return Left('User not authenticated');
+      }
+
+      final snapshot = await _firestore
+          .collection('tasks')
+          .where('participants', arrayContains: currentUserId)
+          .orderBy('lastMessageAt', descending: true)
+          .limit(limit)
+          .get();
+
+      final chats = snapshot.docs.map((doc) => _mapTaskDocToChat(doc)).toList();
+      return Right(chats);
+    } catch (e) {
+      return Left('Failed to load chats: $e');
+    }
+  }
+
+  @override
+  Stream<List<Chat>> getUserChatsStream({int limit = 50}) {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) {
+      return const Stream.empty();
+    }
+
+    return _firestore
+        .collection('tasks')
+        .where('participants', arrayContains: currentUserId)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => _mapTaskDocToChat(doc)).toList());
+  }
+
+  Chat _mapTaskDocToChat(firestore.DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    return Chat(
+      id: doc.id,
+      taskId: doc.id,
+      taskName: data['title'] ?? 'Unknown Task',
+      taskDescription: data['description'] ?? '',
+      participants: List<String>.from(data['participants'] ?? const []),
+      requesterId: data['requesterId'] ?? '',
+      taskerId: data['taskerId'] ?? '',
+      createdAt: (data['createdAt'] as firestore.Timestamp?)?.toDate() ?? DateTime.now(),
+      lastMessageAt: (data['lastMessageAt'] as firestore.Timestamp?)?.toDate(),
+      lastMessage: _mapEmbeddedMessage(doc.id, data['lastMessage']),
+      status: _parseStatus(data['status']),
+      isTyping: data['typing'] == true,
+      typingUserId: data['typingUserId'],
+    );
+  }
+
+  ChatStatus _parseStatus(String? raw) {
+    switch (raw) {
+      case 'ended':
+        return ChatStatus.ended;
+      case 'archived':
+        return ChatStatus.archived;
+      default:
+        return ChatStatus.active;
+    }
+  }
+
+  Message? _mapEmbeddedMessage(String taskId, dynamic raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final timestamp = raw['timestamp'];
+    DateTime? ts;
+    if (timestamp is firestore.Timestamp) {
+      ts = timestamp.toDate();
+    } else if (timestamp is DateTime) {
+      ts = timestamp;
+    }
+
+    return Message(
+      id: raw['id'] ?? '',
+      taskId: taskId,
+      senderId: raw['senderId'] ?? '',
+      senderName: raw['senderName'] ?? '',
+      senderAvatar: raw['senderAvatar'],
+      content: raw['content'] ?? '',
+      type: _parseMessageType(raw['type']),
+      timestamp: ts ?? DateTime.now(),
+      status: _parseMessageStatus(raw['status']),
+      isFromCurrentUser: raw['senderId'] == _auth.currentUser?.uid,
+      imageUrl: raw['imageUrl'],
+    );
+  }
+
+  MessageType _parseMessageType(String? raw) {
+    switch (raw) {
+      case 'MessageType.image':
+      case 'image':
+        return MessageType.image;
+      case 'MessageType.system':
+      case 'system':
+        return MessageType.system;
+      default:
+        return MessageType.text;
+    }
+  }
+
+  MessageStatus _parseMessageStatus(String? raw) {
+    switch (raw) {
+      case 'MessageStatus.delivered':
+      case 'delivered':
+        return MessageStatus.delivered;
+      case 'MessageStatus.read':
+      case 'read':
+        return MessageStatus.read;
+      default:
+        return MessageStatus.sent;
+    }
+  }
   @override
   Future<Either<String, String>> uploadImage(String taskId, String filePath) async {
     try {
       File file = File(filePath);
       String fileName = '${taskId}_${DateTime.now().millisecondsSinceEpoch}';
-      
+
       Reference ref = _storage.ref().child('chat_images/$fileName');
       UploadTask uploadTask = ref.putFile(file);
-      
+
       TaskSnapshot snapshot = await uploadTask;
       String downloadUrl = await snapshot.ref.getDownloadURL();
-      
+
       return Right(downloadUrl);
     } catch (e) {
       return Left('Failed to upload image: $e');

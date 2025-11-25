@@ -51,3 +51,14 @@ Unit tests, widget tests, and integration tests.
 
 ## Setup Instructions
 TBD - Will be added during implementation phase.
+
+## Backend Integration Preparation
+
+Even before wiring the latest Firebase SDKs, the chat data schema has been designed so the new UI and repository code can plug straight into the backend once ready:
+
+- **Tasks collection (acts as chat root)**
+  - Fields: `title`, `description`, `participants` (array of user IDs), `requesterId`, `taskerId`, `status`, `createdAt`, `lastMessageAt`, `lastMessage` (embedded snapshot with sender/content/type/status/timestamp), `typing`, `typingUserId`.
+- **Messages subcollection** (`tasks/{taskId}/messages`)
+  - Fields per message: `senderId`, `senderName`, `senderAvatar`, `content`, `type` (`text`, `image`, `system`), `timestamp`, `status` (`sent`, `delivered`, `read`), `imageUrl` (optional).
+
+That structure matches the `ChatRepositoryImpl` expectations (chat list queries run against `tasks`, message streams watch each `messages` subcollection), so once Firebase dependencies are updated, no additional schema work is needed.
