@@ -367,7 +367,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                       elevation: 0,
                     ),
                     child: Text(
-                      'View My Tasks',
+                      'Go Back to Home',
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
