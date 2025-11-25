@@ -13,7 +13,7 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
-  final MapController _mapController = MapController();
+  late MapController _mapController;
   bool _isMapReady = false;
   bool _isLoading = true;
   bool _hasCenteredOnUser = false;
@@ -25,30 +25,64 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // Store the last known position
   latlng.LatLng? _lastKnownPosition;
   final Set<String> _selectedCategories = {};
-  String _selectedUrgency = 'medium';
+  String? _selectedUrgency;
   bool _receiveNotifications = true;
   final List<Map<String, dynamic>> _taskCategories = [
-    {'name': 'Household / Chores', 'selected': false},
-    {'name': 'Errands / Delivery', 'selected': false},
-    {'name': 'Digital / Online Tasks', 'selected': false},
-    {'name': 'General Assistance', 'selected': false},
-    {'name': 'Miscellaneous', 'selected': false},
+    {'name': 'Household / Chores', 'selected': false, 'key': 'household'},
+    {'name': 'Errands / Delivery', 'selected': false, 'key': 'errands'},
+    {'name': 'Digital / Online Tasks', 'selected': false, 'key': 'digital'},
+    {'name': 'General Assistance', 'selected': false, 'key': 'general'},
+    {'name': 'Miscellaneous', 'selected': false, 'key': 'misc'},
   ];
 
   final List<Map<String, dynamic>> _urgencyLevels = [
-    {'name': 'Urgent', 'selected': false},
-    {'name': 'Within a week', 'selected': false},
-    {'name': 'Flexible', 'selected': false},
+    {'name': 'Urgent', 'selected': false, 'key': 'urgent'},
+    {'name': 'Within a week', 'selected': false, 'key': 'medium'},
+    {'name': 'Flexible', 'selected': false, 'key': 'low'},
+  ];
+
+  // Sample task data - replace with your actual task data source
+  final List<Map<String, dynamic>> _allTasks = [
+    {
+      'id': '1',
+      'title': 'Grocery Shopping',
+      'category': 'errands',
+      'urgency': 'medium',
+      'location': latlng.LatLng(13.6314, 123.1947),
+    },
+    {
+      'id': '2',
+      'title': 'Fix Leaky Faucet',
+      'category': 'household',
+      'urgency': 'urgent',
+      'location': latlng.LatLng(13.6214, 123.2047),
+    },
+    {
+      'id': '3',
+      'title': 'Website Update',
+      'category': 'digital',
+      'urgency': 'low',
+      'location': latlng.LatLng(13.6114, 123.1847),
+    },
   ];
   bool _isSidebarOpen = false;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _hasCenteredOnUser = false;
-    _initializeLocation();
-  }
+ @override
+void initState() {
+  super.initState();
+  _mapController = MapController();
+  _mapController.mapEventStream.listen((event) {
+    if (!_isMapReady) {
+      _isMapReady = true;
+      _initializeLocation();
+      _updateMarkers();
+    }
+  });
+  
+  WidgetsBinding.instance.addObserver(this);
+  _hasCenteredOnUser = false;
+}
+
 
   Future<void> _initializeLocation() async {
     try {
@@ -190,9 +224,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       children: [
         _buildUrgencyOption('Urgent', 'urgent'),
         const SizedBox(height: 8),
-        _buildUrgencyOption('Within a week', 'within_a_week'),
+        _buildUrgencyOption('Within a week', 'medium'),
         const SizedBox(height: 8),
-        _buildUrgencyOption('Flexible', 'flexible'),
+        _buildUrgencyOption('Flexible', 'low'),
       ],
     );
   }
@@ -313,7 +347,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             options: MapOptions(
               initialCenter: _initialPosition,
               initialZoom: 14.0,
-              onMapReady: _onMapCreated,
             ),
             children: [
               TileLayer(
@@ -383,11 +416,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       icon: const Icon(Icons.menu, color: Colors.black87, size: 24),
                       padding: const EdgeInsets.all(8),
                       constraints: const BoxConstraints(),
-                      onPressed: () {
-                        setState(() {
-                          _isSidebarOpen = !_isSidebarOpen;
-                        });
-                      },
+                      onPressed: _onFilterPressed,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -402,6 +431,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  void _onFilterPressed() {
+    setState(() {
+      _isSidebarOpen = !_isSidebarOpen;
+    });
+    
+    // Update markers when toggling the filter
+    if (_isMapReady) {
+      _updateMarkers();
+    }
   }
 
   Widget _buildSidebar() {
@@ -485,7 +525,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 8),
-                ..._buildCheckboxList(_taskCategories),
+                ..._buildCheckboxList(_taskCategories, 'category'),
                 const SizedBox(height: 16),
                 
                 // Urgency Section
@@ -500,7 +540,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 8),
-                ..._buildCheckboxList(_urgencyLevels),
+                ..._buildCheckboxList(_urgencyLevels, 'urgency'),
                 const SizedBox(height: 16),
                 
                 // Notification Toggle
@@ -566,40 +606,142 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
-  List<Widget> _buildCheckboxList(List<Map<String, dynamic>> items) {
-    return items.map((item) {
-      return CheckboxListTile(
-        title: Text(
-          item['name'],
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF111827),
-            height: 24 / 15, // line height / font size
-            letterSpacing: 0.5,
-          ),
+  List<Widget> _buildCheckboxList(List<Map<String, dynamic>> items, String type) {
+  return items.map((item) {
+    final isSelected = type == 'category' 
+        ? _selectedCategories.contains(item['key'])
+        : _selectedUrgency == item['key'];
+
+    return CheckboxListTile(
+      title: Text(
+        item['name'],
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: Color(0xFF111827),
+          height: 24 / 15,
+          letterSpacing: 0.5,
         ),
-        value: item['selected'],
-        onChanged: (value) {
-          setState(() {
-            item['selected'] = value;
-          });
-        },
-        controlAffinity: ListTileControlAffinity.leading,
-        contentPadding: EdgeInsets.zero,
-        dense: true,
-      );
+      ),
+      value: isSelected,
+      onChanged: (bool? value) {
+        setState(() {
+          if (type == 'category') {
+            if (value == true) {
+              _selectedCategories.add(item['key']);
+            } else {
+              _selectedCategories.remove(item['key']);
+            }
+          } else {
+            _selectedUrgency = value == true ? item['key'] : null;
+          }
+          _updateMarkers();
+        });
+      },
+      controlAffinity: ListTileControlAffinity.leading,
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+    );
+  }).toList();
+}
+       
+  
+  // Filter tasks based on selected categories and urgency
+  List<Map<String, dynamic>> _getFilteredTasks() {
+    if (_allTasks.isEmpty) return [];
+    
+    return _allTasks.where((task) {
+      // Debug prints to help track filtering
+      debugPrint('Task: ${task['title']} - Category: ${task['category']}, Urgency: ${task['urgency']}');
+      debugPrint('Selected Categories: $_selectedCategories, Selected Urgency: $_selectedUrgency');
+      
+      // Check category filter
+      final categoryMatch = _selectedCategories.isEmpty || 
+          _selectedCategories.any((cat) => 
+              task['category']?.toString().toLowerCase() == cat.toLowerCase());
+      
+      // Check urgency filter
+      final urgencyMatch = _selectedUrgency == null || 
+          (task['urgency']?.toString().toLowerCase() == _selectedUrgency?.toLowerCase());
+      
+      debugPrint('Category match: $categoryMatch, Urgency match: $urgencyMatch');
+      
+      return categoryMatch && urgencyMatch;
     }).toList();
   }
-
-  void _onMapCreated() {
-    _isMapReady = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_hasCenteredOnUser) {
-        _initializeLocation();
-      }
-    });
+  
+  // Update markers based on filtered tasks
+  void _updateMarkers() {
+  if (_mapController == null || !_isMapReady) {
+    debugPrint('Map controller not ready yet');
+    return;
   }
+  
+  final filteredTasks = _getFilteredTasks();
+  debugPrint('Updating markers. Found ${filteredTasks.length} tasks after filtering.');
+  
+  setState(() {
+    _markers.clear();
+    
+    // Add markers for filtered tasks
+    for (var task in filteredTasks) {
+      if (task['location'] != null) {
+        _markers.add(
+          Marker(
+            width: 40.0,
+            height: 40.0,
+            point: task['location'] as latlng.LatLng,
+            child: Tooltip(
+              message: '${task['title']}\nUrgency: ${task['urgency']}',
+              child: Icon(
+                Icons.location_pin,
+                color: _getUrgencyColor(task['urgency'] as String),
+                size: 40.0,
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    
+    // If we have markers, center the map on them
+    if (_markers.isNotEmpty) {
+      try {
+        final bounds = _markers.map((m) => m.point).toList();
+        _mapController.fitCamera(
+          CameraFit.coordinates(
+            coordinates: bounds,
+            padding: const EdgeInsets.all(50.0),
+          ),
+        );
+      } catch (e) {
+        debugPrint('Error centering map: $e');
+        // Fallback to default zoom if there's an error
+        _mapController.move(_initialPosition, 14.0);
+      }
+    } else {
+      // If no markers, center on initial position
+      _mapController.move(_initialPosition, 14.0);
+    }
+  });
+}
+
+  
+  // Get color based on urgency
+  Color _getUrgencyColor(String urgency) {
+    switch (urgency) {
+      case 'urgent':
+        return Colors.red;
+      case 'medium':
+        return Colors.orange;
+      case 'low':
+        return Colors.green;
+      default:
+        return Colors.blue;
+    }
+  }
+
+  // Removed _onMapCreated as we're now using MapController's onReady
 
   bool _isFirstLoad = true;
   bool _hasSetInitialLocation = false;
