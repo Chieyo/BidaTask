@@ -26,8 +26,20 @@ migrate_working_dir/
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
-.dart_tool/
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Flutter.framework/
+**/ios/Flutter/App.framework/
+**/ios/Flutter/Debug.xcconfig
+**/ios/Flutter/Release.xcconfig
+**/ios/Flutter/FlutterPluginRegistrant/GeneratedPluginRegistrant.*
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/linux/flutter/generated_plugin_registrant.cc
+**/linux/flutter/generated_plugins.cmake
+**/windows/flutter/generated_plugin_registrant.cc
+**/windows/flutter/generated_plugins.cmake
+.flutter-plugins
 .flutter-plugins-dependencies
+.dart_tool/
 .pub-cache/
 .pub/
 /build/
