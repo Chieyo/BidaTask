@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:latlong2/latlong.dart' as latlng;
+import '../domain/models/task_model.dart';
 
 class TaskService {
   static final String baseUrl =
@@ -78,5 +79,89 @@ class TaskService {
         'message': 'Error: $e',
       };
     }
+  }
+
+  Future<List<Task>> fetchNearbyTasks({String? category}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/tasks').replace(queryParameters: {
+        if (category != null && category.isNotEmpty) 'category': category,
+      });
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == 'success') {
+        final List<dynamic> tasks = data['data'] ?? [];
+        return tasks
+            .map((taskJson) => _mapTaskFromJson(taskJson))
+            .whereType<Task>()
+            .toList();
+      }
+
+      throw Exception(data['message'] ?? 'Failed to fetch tasks');
+    } catch (e) {
+      throw Exception('Unable to load tasks: $e');
+    }
+  }
+
+  Future<List<Task>> fetchMyTasks() async {
+    final token = await _getToken();
+    if (token == null) {
+      throw Exception('Authentication required');
+    }
+
+    try {
+      final uri = Uri.parse('$baseUrl/tasks/mine');
+      final response = await http.get(uri, headers: {
+        'Authorization': 'Bearer $token',
+      }).timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == 'success') {
+        final List<dynamic> tasks = data['data'] ?? [];
+        return tasks
+            .map((taskJson) => _mapTaskFromJson(taskJson, isMineOverride: true))
+            .whereType<Task>()
+            .toList();
+      }
+
+      throw Exception(data['message'] ?? 'Failed to fetch your tasks');
+    } catch (e) {
+      throw Exception('Unable to load your tasks: $e');
+    }
+  }
+
+  Task? _mapTaskFromJson(Map<String, dynamic>? json, {bool isMineOverride = false}) {
+    if (json == null) return null;
+
+    final price = _toDouble(json['reward']);
+    final postedTime = DateTime.tryParse('${json['createdAt']}') ?? DateTime.now();
+    final dueDateRaw = json['dueDate'];
+    final dueDate = dueDateRaw != null ? DateTime.tryParse('$dueDateRaw') : null;
+    final category = (json['category'] ?? json['task_category'] ?? 'Misc').toString();
+    final priority = (json['priority'] ?? json['task_priority'] ?? '').toString().toLowerCase();
+    final requesterName = json['requesterName'] ?? 'Task Owner';
+
+    return Task(
+      id: json['id'] ?? '',
+      title: json['title'] ?? json['task_title'] ?? 'Untitled Task',
+      description: json['description'] ?? json['task_description'] ?? 'No description provided.',
+      price: price,
+      postedTime: postedTime,
+      dueDate: dueDate,
+      location: json['locationName'] ?? json['location_name'] ?? 'No location specified',
+      postedBy: requesterName,
+      category: category,
+      isMyTask: isMineOverride || (json['isMine'] == true),
+      isUrgent: priority == 'high',
+    );
+  }
+
+  double _toDouble(dynamic value) {
+    if (value == null) return 0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0;
   }
 }

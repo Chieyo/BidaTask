@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import '../../widgets/user/user_greeting.dart';
 import '../../widgets/background/animated_background.dart';
 import '../../../domain/models/task_model.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../widgets/task/my_task_card.dart';
 import '../../widgets/task/task_near_you_card.dart';
 import '../tasks/all_tasks_screen.dart';
+import '../../../services/task_service.dart';
+import '../../../services/auth_service.dart';
 
 class HomeFeedScreen extends StatefulWidget {
   const HomeFeedScreen({super.key});
@@ -18,11 +21,106 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
   int _selectedIndex = 0;
   String _activeCategory = 'All';
   late TabController _tabController;
+  final TaskService _taskService = TaskService();
+  final AuthService _authService = AuthService();
+
+  List<Task> _activeTasks = [];
+  List<Task> _postedTasks = [];
+  List<Task> _nearbyTasks = [];
+
+  String _username = 'BidaTasker';
+  String _trustTier = '1';
+
+  bool _isLoadingPostedTasks = false;
+  bool _isLoadingNearbyTasks = false;
+  String? _postedTasksError;
+  String? _nearbyTasksError;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadHomeFeedData();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final response = await _authService.getProfile();
+      if (response['success'] == true) {
+        final user = response['user'] ?? {};
+        final rawName = (user['full_name'] ?? user['fullName'] ?? user['username'] ?? '').toString().trim();
+        final rawTier = (user['trustTier'] ?? user['trust_tier'] ?? '1').toString();
+
+        if (!mounted) return;
+
+        setState(() {
+          _username = rawName.isEmpty ? 'BidaTasker' : rawName;
+          _trustTier = rawTier.isEmpty ? '1' : rawTier;
+        });
+      }
+    } catch (_) {
+      // Silently keep defaults if profile fetch fails
+    }
+  }
+
+  Future<void> _loadHomeFeedData() async {
+    await Future.wait([
+      _loadPostedTasks(),
+      _loadNearbyTasks(),
+    ]);
+  }
+
+  Future<void> _loadPostedTasks() async {
+    setState(() {
+      _isLoadingPostedTasks = true;
+      _postedTasksError = null;
+    });
+
+    List<Task>? fetched;
+    String? error;
+
+    try {
+      fetched = await _taskService.fetchMyTasks();
+    } catch (e) {
+      error = e.toString();
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      if (fetched != null) {
+        _postedTasks = fetched;
+      }
+      _postedTasksError = error;
+      _isLoadingPostedTasks = false;
+    });
+  }
+
+  Future<void> _loadNearbyTasks() async {
+    setState(() {
+      _isLoadingNearbyTasks = true;
+      _nearbyTasksError = null;
+    });
+
+    List<Task>? fetched;
+    String? error;
+
+    try {
+      fetched = await _taskService.fetchNearbyTasks();
+    } catch (e) {
+      error = e.toString();
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      if (fetched != null) {
+        _nearbyTasks = fetched;
+      }
+      _nearbyTasksError = error;
+      _isLoadingNearbyTasks = false;
+    });
   }
 
   @override
@@ -40,9 +138,9 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
         appBar: AppBar(
           backgroundColor: Colors.transparent,  // Transparent app bar
           elevation: 0,
-          title: const UserGreeting(
-            username: 'JM The Best',
-            trustTier: '1',
+          title: UserGreeting(
+            username: _username,
+            trustTier: _trustTier,
           ),
           actions: [
             IconButton(
@@ -100,8 +198,18 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildUserTasksList(_userActiveTasks, 'No active tasks yet'),
-                _buildUserTasksList(_userPostedTasks, 'No posted tasks yet'),
+                _buildUserTasksList(
+                  _activeTasks,
+                  'No active tasks yet',
+                  isLoading: false,
+                ),
+                _buildUserTasksList(
+                  _postedTasks,
+                  'No posted tasks yet',
+                  isLoading: _isLoadingPostedTasks,
+                  errorMessage: _postedTasksError,
+                  onRetry: _loadPostedTasks,
+                ),
               ],
             ),
           ),
@@ -114,9 +222,18 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
     );
   }
 
-
   Widget _buildTasksNearYouSection() {
-    final categories = ['All', 'Shopping', 'Delivery', 'Chores', 'Misc'];
+    final categories = [
+      'All',
+      'Delivery',
+      'Shopping',
+      'Household Chores',
+      'Online Assistance',
+      'General Assistance',
+      'Personal',
+      'Misc',
+    ];
+    
     final filteredTasks = _getFilteredTasks();
     
     return Container(
@@ -198,14 +315,55 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
           
           // Tasks Grid with bottom spacing
           const SizedBox(height: 12),
-          if (filteredTasks.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.only(bottom: 24), // Added bottom margin
-              decoration: BoxDecoration(
-                color: const Color.fromRGBO(255, 255, 255, 0.1),
-                borderRadius: BorderRadius.circular(12),
+          if (_isLoadingNearbyTasks)
+            _buildGlassMessageCard(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Loading tasks...',
+                    style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14),
+                  ),
+                ],
               ),
+            )
+          else if (_nearbyTasksError != null)
+            _buildGlassMessageCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No tasks near you right now',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Try again in a bit or tap retry below.',
+                    style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _loadNearbyTasks,
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFFFD700),
+                    ),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          else if (filteredTasks.isEmpty)
+            _buildGlassMessageCard(
               child: Center(
                 child: Text(
                   'No tasks found',
@@ -234,11 +392,9 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
                 return TaskNearYouCard(
                   task: task,
                   onTap: () {
-                    // Handle task tap
                     debugPrint('Tapped on task: ${task.title}');
                   },
                   onTakeTask: () {
-                    // Handle take task
                     debugPrint('Take task: ${task.title}');
                   },
                 );
@@ -252,29 +408,80 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
   
   List<Task> _getFilteredTasks() {
     if (_activeCategory == 'All') return _nearbyTasks;
-    
+
     return _nearbyTasks.where((task) {
       return task.category.toLowerCase() == _activeCategory.toLowerCase();
     }).toList();
   }
-  
-  Widget _buildUserTasksList(List<Task> tasks, String emptyMessage) {
-    if (tasks.isEmpty) {
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: const Color.fromRGBO(0, 0, 0, 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+
+  Widget _buildUserTasksList(
+    List<Task> tasks,
+    String emptyMessage, {
+    bool isLoading = false,
+    String? errorMessage,
+    Future<void> Function()? onRetry,
+  }) {
+    if (isLoading) {
+      return _buildStatusCard(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
+            const SizedBox(width: 12),
+            Text(
+              'Loading tasks...',
+              style: GoogleFonts.poppins(
+                color: Colors.grey[700],
+                fontSize: 14,
+              ),
+            )
           ],
         ),
-        child: Center(
+      );
+    }
+
+    if (errorMessage != null) {
+      return _buildStatusCard(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              emptyMessage,
+              style: GoogleFonts.poppins(
+                color: Colors.grey[800],
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'We could not load this list. Please try again.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                color: Colors.grey[600],
+                fontSize: 12,
+              ),
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: onRetry,
+                child: const Text('Retry'),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    if (tasks.isEmpty) {
+      return _buildStatusCard(
+        Center(
           child: Text(
             emptyMessage,
             style: GoogleFonts.poppins(
@@ -307,47 +514,34 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
     );
   }
 
-  Widget _buildTasksList(List<Task> tasks) {
-    if (tasks.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(
-          child: Text(
-            'No tasks found',
-            style: GoogleFonts.poppins(
-              color: Colors.white70,
-              fontSize: 16,
-            ),
+  Widget _buildStatusCard(Widget child) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: const Color.fromRGBO(0, 0, 0, 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        ),
-      );
-    }
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.8,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        ],
       ),
-      itemCount: tasks.length,
-      itemBuilder: (context, index) {
-        return TaskNearYouCard(
-          task: tasks[index],
-          onTap: () {
-            // Handle task tap
-          },
-          onTakeTask: () {
-            // Handle take task
-          },
-        );
-      },
+      child: child,
+    );
+  }
+
+  Widget _buildGlassMessageCard({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: const Color.fromRGBO(255, 255, 255, 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: child,
     );
   }
 
@@ -431,162 +625,4 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
       ),
     );
   }
-
-  // User's active tasks (tasks the user is working on)
-  final List<Task> _userActiveTasks = [
-    Task(
-      id: 'active1',
-      title: 'Grocery Shopping',
-      description: 'Weekly grocery shopping and delivery',
-      price: 1200.0,
-      postedTime: DateTime.now().subtract(const Duration(hours: 2)),
-      dueDate: DateTime.now().add(const Duration(days: 1)),
-      location: '123 Green Meadows, Quezon City',
-      postedBy: 'Maria S.',
-      isMyTask: true,
-      isUrgent: true,
-      category: 'Shopping',
-    ),
-    Task(
-      id: 'active2',
-      title: 'Laptop Screen Repair',
-      description: 'Replace broken screen on HP Pavilion',
-      price: 3500.0,
-      postedTime: DateTime.now().subtract(const Duration(days: 1)),
-      dueDate: DateTime.now().add(const Duration(days: 3)),
-      location: '456 Tech Hub, BGC',
-      postedBy: 'John D.',
-      isMyTask: true,
-      isUrgent: false,
-      category: 'Misc',
-    ),
-  ];
-
-  // User's posted tasks (tasks the user created)
-  final List<Task> _userPostedTasks = [
-    Task(
-      id: 'posted1',
-      title: 'Furniture Assembly',
-      description: 'Need help assembling IKEA furniture set',
-      price: 1800.0,
-      postedTime: DateTime.now().subtract(const Duration(days: 1)),
-      dueDate: DateTime.now().add(const Duration(days: 2)),
-      location: '789 Urban Living, Makati',
-      postedBy: 'You',
-      isUrgent: true,
-      category: 'Chores',
-    ),
-    Task(
-      id: 'posted2',
-      title: 'Math Tutoring',
-      description: 'Need help with college algebra',
-      price: 800.0,
-      postedTime: DateTime.now().subtract(const Duration(hours: 5)),
-      dueDate: DateTime.now().add(const Duration(days: 3)),
-      location: '321 Student Residences, Manila',
-      postedBy: 'You',
-      isUrgent: false,
-      category: 'Misc',
-    ),
-  ];
-
-  // Tasks near the user's location
-  final List<Task> _nearbyTasks = [
-    Task(
-      id: 'delivery1',
-      title: 'Lunch Delivery',
-      description: 'Need someone to pick up and deliver lunch from a restaurant',
-      price: 200.0,
-      postedTime: DateTime.now().subtract(const Duration(minutes: 30)),
-      dueDate: DateTime.now().add(const Duration(hours: 1)),
-      location: '123 Food Street, Makati',
-      postedBy: 'Hungry Office PH',
-      isUrgent: true,
-      category: 'Delivery',
-    ),
-    Task(
-      id: 'delivery2',
-      title: 'Document Courier',
-      description: 'Need to deliver important documents to a client',
-      price: 350.0,
-      postedTime: DateTime.now().subtract(const Duration(hours: 2)),
-      dueDate: DateTime.now().add(const Duration(hours: 4)),
-      location: '456 Business Ave, BGC',
-      postedBy: 'Legal Docs Inc.',
-      isUrgent: false,
-      category: 'Delivery',
-    ),
-    Task(
-      id: 'near1',
-      title: 'Pet Sitting',
-      description: 'Need someone to walk my dog for a week',
-      price: 1500.0,
-      postedTime: DateTime.now().subtract(const Duration(hours: 2)),
-      dueDate: DateTime.now().add(const Duration(days: 7)),
-      location: '123 Pet Lovers St, Taguig',
-      postedBy: 'Sophia M.',
-      isUrgent: false,
-      category: 'Chores',
-    ),
-    Task(
-      id: 'near2',
-      title: 'Photo Editing',
-      description: '50 product photos need white background',
-      price: 2500.0,
-      postedTime: DateTime.now().subtract(const Duration(hours: 5)),
-      dueDate: DateTime.now().add(const Duration(days: 5)),
-      location: '456 Digital Hub, Ortigas',
-      postedBy: 'Creative Shop PH',
-      isUrgent: true,
-      category: 'Misc',
-    ),
-    Task(
-      id: 'near3',
-      title: 'Moving Assistance',
-      description: 'Need help moving boxes to 3rd floor apartment',
-      price: 2000.0,
-      postedTime: DateTime.now().subtract(const Duration(hours: 2)),
-      dueDate: DateTime.now().add(const Duration(days: 1)),
-      location: '753 Moving St, Mandaluyong',
-      postedBy: 'Miguel T.',
-      isUrgent: true,
-      category: 'Chores',
-    ),
-    Task(
-      id: 'near4',
-      title: 'IKEA Furniture Assembly',
-      description: 'Need help assembling IKEA furniture (bed, desk, chair)',
-      price: 1800.0,
-      postedTime: DateTime.now().subtract(const Duration(hours: 1)),
-      dueDate: DateTime.now().add(const Duration(days: 2)),
-      location: '321 Urban Living, Makati',
-      postedBy: 'James L.',
-      isUrgent: true,
-      category: 'Misc',
-    ),
-    Task(
-      id: 'near5',
-      title: 'Photo Editing',
-      description: 'Need 50 product photos edited with white background',
-      price: 2500.0,
-      postedTime: DateTime.now().subtract(const Duration(hours: 12)),
-      dueDate: DateTime.now().add(const Duration(days: 5)),
-      location: '159 Digital Hub, Ortigas',
-      postedBy: 'Creative Shop PH',
-      isUrgent: false,
-      category: 'Misc',
-    ),
-    Task(
-      id: 'near6',
-      title: 'Moving Assistance',
-      description: 'Need help moving boxes to 3rd floor apartment (no elevator)',
-      price: 2000.0,
-      postedTime: DateTime.now().subtract(const Duration(hours: 2)),
-      dueDate: DateTime.now().add(const Duration(days: 1)),
-      location: '753 Moving St, Mandaluyong',
-      postedBy: 'Miguel T.',
-      isUrgent: true,
-      category: 'Chores',
-    ),
-  ];
 }
