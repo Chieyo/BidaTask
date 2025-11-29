@@ -1,12 +1,12 @@
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  // Use 10.0.2.2 for Android emulator to reach host machine
-  // For iOS simulator, use localhost:3000
-  // For physical device, use your computer's IP address
-  static const String baseUrl = 'http://10.0.2.2:3000/api/auth'; //jm - change this to your computer's IP address, akin kasi to lol
+  static final String _apiBaseUrl =
+      (dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000/api').replaceFirst(RegExp(r'/$'), '');
+  static final String baseUrl = '$_apiBaseUrl/auth';
   
   // Store authentication token
   Future<void> _storeToken(String token) async {

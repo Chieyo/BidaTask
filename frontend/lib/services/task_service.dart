@@ -1,12 +1,13 @@
 // task_service.dart
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:latlong2/latlong.dart' as latlng;
 
 class TaskService {
-  // Update this to your actual backend URL
-  static const String baseUrl = 'http://10.0.2.2:3000/api';
+  static final String baseUrl =
+      (dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000/api').replaceFirst(RegExp(r'/$'), '');
 
   // Get authentication token
   Future<String?> _getToken() async {
