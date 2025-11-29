@@ -1,4 +1,4 @@
-package com.bidatask.bidatask
+package com.BidaTask.BidaTask
 
 import io.flutter.embedding.android.FlutterActivity
 

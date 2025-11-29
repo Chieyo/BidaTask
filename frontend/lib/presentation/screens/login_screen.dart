@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'signup_screen.dart';
 import '../../services/auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -53,8 +56,8 @@ class _LoginScreenState extends State<LoginScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          // Navigate to onboarding screen on success
-          Navigator.pushReplacementNamed(context, '/onboarding1');
+          // Navigate to home screen on success
+          Navigator.pushReplacementNamed(context, '/home');
         }
       } else {
         // Show error message
@@ -78,6 +81,56 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _googleSignIn() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final androidClientId = dotenv.get('ANDROID_CLIENT_ID');
+
+      final googleUser = await GoogleSignIn(
+        serverClientId: androidClientId,
+      ).signIn();
+
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+
+      final response = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: googleAuth.idToken!,
+        accessToken: googleAuth.accessToken!,
+      );
+
+      if (response.session != null) {
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        throw 'No session created';
+      }
+    } catch (e) {
+      print('Google Sign-In failed: $e');
+      await _fallbackToSupabaseOAuth();
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fallbackToSupabaseOAuth() async {
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'bidatask://login-callback',
+      );
+    } catch (e) {
+      print('OAuth Fallback Error: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Google OAuth failed: $e')));
     }
   }
 
@@ -417,9 +470,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 16),
                         // Google Button
                         ElevatedButton(
-                          onPressed: () {
-                            // TODO: Handle Google sign in
-                          },
+                          onPressed: _isLoading ? null : _googleSignIn,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             minimumSize: const Size(double.infinity, 48),

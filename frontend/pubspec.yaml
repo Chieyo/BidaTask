@@ -59,6 +59,7 @@ dependencies:
   # Supabase
   supabase_flutter: ^2.10.3
   flutter_dotenv: ^6.0.0
+  google_sign_in: ^6.1.0
   
   # Location Services
   geolocator: ^14.0.2
