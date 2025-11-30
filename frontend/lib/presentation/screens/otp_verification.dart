@@ -200,8 +200,8 @@ class _OtpVerification extends State<OtpVerification> {
               color: isFocused
                   ? const Color(0xff2563eb) // Active - blue
                   : hasValue
-                  ? const Color(0xff10b981) // Filled - green
-                  : const Color(0xffc5c6cc), // Inactive - gray
+                      ? const Color(0xff10b981) // Filled - green
+                      : const Color(0xffc5c6cc), // Inactive - gray
               width: isFocused ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(12),
@@ -217,9 +217,8 @@ class _OtpVerification extends State<OtpVerification> {
             maxLength: 1,
             style: TextStyle(
               fontSize: 24,
-              color: hasValue
-                  ? const Color(0xff1f2024)
-                  : const Color(0xff9ca3af),
+              color:
+                  hasValue ? const Color(0xff1f2024) : const Color(0xff9ca3af),
               fontWeight: FontWeight.bold,
             ),
             decoration: const InputDecoration(
