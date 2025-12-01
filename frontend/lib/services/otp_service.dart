@@ -1,10 +1,9 @@
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class OtpService {
-  static final String baseUrl =
-      '${(dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000/api').replaceFirst(RegExp(r'/$'), '')}/otp';
+  // Use 10.0.2.2 for Android emulator to access host machine's localhost
+  static const String baseUrl = 'http://10.0.2.2:3000/api/otp'; // Using 10.0.2.2 for Android emulator
 
   // Verify OTP
   Future<Map<String, dynamic>> verifyOtp({
