@@ -35,7 +35,7 @@ Future<void> main() async {
     if (event == AuthChangeEvent.signedIn && session != null) {
       // User successfully signed in, navigate to onboarding
       print('User signed in, navigating to onboarding');
-      navigatorKey.currentState?.pushReplacementNamed('/home');
+      navigatorKey.currentState?.pushReplacementNamed('/onboarding1');
     }
   });
 

@@ -31,7 +31,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <!-- Accepts URIs that begin with YOUR_SCHEME://YOUR_HOST -->
                 <data
-                android:scheme="bidatask"
+                android:scheme="io.supabase.flutter"
                 android:host="login-callback" />
             </intent-filter>
 
