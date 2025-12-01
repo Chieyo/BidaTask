@@ -4,28 +4,30 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static final String _apiBaseUrl =
-      (dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000/api').replaceFirst(RegExp(r'/$'), '');
-  static final String baseUrl = '$_apiBaseUrl/auth';
-  
+  // Use 10.0.2.2 for Android emulator to reach host machine
+  // For iOS simulator, use localhost:3000
+  // For physical device, use your computer's IP address
+  static const String baseUrl =
+      'http://10.0.2.2:3000/api/auth'; //jm - change this to your computer's IP address, akin kasi to lol
+
   // Store authentication token
   Future<void> _storeToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('auth_token', token);
   }
-  
+
   // Get stored authentication token
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('auth_token');
   }
-  
+
   // Remove stored authentication token
   Future<void> _removeToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
   }
-  
+
   // Sign up new user
   Future<Map<String, dynamic>> signUp({
     required String email,
@@ -41,12 +43,12 @@ class AuthService {
         'password': password,
         'fullName': fullName,
       };
-      
+
       // Only add contactNumber if it has a value
       if (contactNumber != null && contactNumber.isNotEmpty) {
         requestBody['contactNumber'] = contactNumber;
       }
-      
+
       // Only add age if it has a value
       if (age != null && age.isNotEmpty) {
         requestBody['age'] = age;
@@ -59,9 +61,9 @@ class AuthService {
         },
         body: jsonEncode(requestBody),
       );
-      
+
       final data = jsonDecode(response.body);
-      
+
       if (response.statusCode == 201) {
         // Store the token
         await _storeToken(data['data']['token']);
@@ -84,7 +86,7 @@ class AuthService {
       };
     }
   }
-  
+
   // Sign in existing user
   Future<Map<String, dynamic>> signIn({
     required String email,
@@ -101,9 +103,9 @@ class AuthService {
           'password': password,
         }),
       );
-      
+
       final data = jsonDecode(response.body);
-      
+
       if (response.statusCode == 200) {
         // Store the token
         await _storeToken(data['data']['token']);
@@ -125,19 +127,19 @@ class AuthService {
       };
     }
   }
-  
+
   // Sign out user
   Future<Map<String, dynamic>> signOut() async {
     try {
       final token = await getToken();
-      
+
       if (token == null) {
         return {
           'success': false,
           'message': 'No token found',
         };
       }
-      
+
       final response = await http.post(
         Uri.parse('$baseUrl/signout'),
         headers: {
@@ -145,12 +147,12 @@ class AuthService {
           'Authorization': 'Bearer $token',
         },
       );
-      
+
       // Remove token regardless of response
       await _removeToken();
-      
+
       final data = jsonDecode(response.body);
-      
+
       return {
         'success': response.statusCode == 200,
         'message': data['message'] ?? 'Sign out completed',
@@ -164,19 +166,19 @@ class AuthService {
       };
     }
   }
-  
+
   // Get current user profile
   Future<Map<String, dynamic>> getProfile() async {
     try {
       final token = await getToken();
-      
+
       if (token == null) {
         return {
           'success': false,
           'message': 'No token found',
         };
       }
-      
+
       final response = await http.get(
         Uri.parse('$baseUrl/profile'),
         headers: {
@@ -184,9 +186,9 @@ class AuthService {
           'Authorization': 'Bearer $token',
         },
       );
-      
+
       final data = jsonDecode(response.body);
-      
+
       if (response.statusCode == 200) {
         return {
           'success': true,
@@ -205,7 +207,7 @@ class AuthService {
       };
     }
   }
-  
+
   // Update user profile
   Future<Map<String, dynamic>> updateProfile({
     String? fullName,
@@ -213,18 +215,18 @@ class AuthService {
   }) async {
     try {
       final token = await getToken();
-      
+
       if (token == null) {
         return {
           'success': false,
           'message': 'No token found',
         };
       }
-      
+
       final body = <String, dynamic>{};
       if (fullName != null) body['fullName'] = fullName;
       if (phone != null) body['phone'] = phone;
-      
+
       final response = await http.put(
         Uri.parse('$baseUrl/profile'),
         headers: {
@@ -233,9 +235,9 @@ class AuthService {
         },
         body: jsonEncode(body),
       );
-      
+
       final data = jsonDecode(response.body);
-      
+
       if (response.statusCode == 200) {
         return {
           'success': true,
@@ -256,7 +258,7 @@ class AuthService {
       };
     }
   }
-  
+
   // Check if user is authenticated
   Future<bool> isAuthenticated() async {
     final token = await getToken();
