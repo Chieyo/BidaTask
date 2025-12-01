@@ -34,9 +34,9 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   final List<Map<String, dynamic>> _categories = [
     {'value': 'Delivery', 'label': 'Delivery', 'icon': Icons.local_shipping},
     {'value': 'Shopping', 'label': 'Shopping', 'icon': Icons.shopping_cart},
-    {'value': 'Household_Chores', 'label': 'Household Chores', 'icon': Icons.cleaning_services},
-    {'value': 'Online_Assistance', 'label': 'Online Assistance', 'icon': Icons.computer},
-    {'value': 'General_Assistance', 'label': 'General Assistance', 'icon': Icons.help},
+    {'value': 'Household Chores', 'label': 'Household Chores', 'icon': Icons.cleaning_services},
+    {'value': 'Online Assistance', 'label': 'Online Assistance', 'icon': Icons.computer},
+    {'value': 'General Assistance', 'label': 'General Assistance', 'icon': Icons.help},
     {'value': 'Personal', 'label': 'Personal', 'icon': Icons.person},
   ];
 
