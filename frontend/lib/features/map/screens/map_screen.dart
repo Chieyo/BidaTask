@@ -272,7 +272,7 @@ List<Task> _allTasks = [];
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(task.description),
+            Text(task.description ?? 'No description'),
             const SizedBox(height: 8),
             Text('Category: ${task.category}'),
             Text('Urgent: ${task.isUrgent ? "Yes" : "No"}'),
@@ -304,7 +304,7 @@ List<Task> _allTasks = [];
       filteredTasks = filteredTasks.where((task) {
         return task.title.toLowerCase().contains(_searchQuery) ||
                task.category.toLowerCase().contains(_searchQuery) ||
-               task.description.toLowerCase().contains(_searchQuery);
+               (task.description?.toLowerCase().contains(_searchQuery) ?? false);
       }).toList();
     }
     
