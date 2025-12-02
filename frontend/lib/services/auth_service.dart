@@ -7,8 +7,13 @@ class AuthService {
   // Use 10.0.2.2 for Android emulator to reach host machine
   // For iOS simulator, use localhost:3000
   // For physical device, use your computer's IP address
-  static const String baseUrl =
-      'http://10.0.2.2:3000/api/auth'; //jm - change this to your computer's IP address, akin kasi to lol
+  static final String baseUrl = _resolveBaseUrl();
+
+  static String _resolveBaseUrl() {
+    final rawBase = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000/api';
+    final normalizedBase = rawBase.replaceFirst(RegExp(r'/+$'), '');
+    return normalizedBase.endsWith('/auth') ? normalizedBase : '$normalizedBase/auth';
+  }
 
   // Store authentication token
   Future<void> _storeToken(String token) async {
