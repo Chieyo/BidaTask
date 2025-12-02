@@ -87,19 +87,27 @@ class TaskService {
         if (category != null && category.isNotEmpty) 'category': category,
       });
 
+      print('Fetching tasks from: $uri');
       final response = await http.get(uri).timeout(const Duration(seconds: 15));
       final data = jsonDecode(response.body);
 
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
       if (response.statusCode == 200 && data['status'] == 'success') {
         final List<dynamic> tasks = data['data'] ?? [];
-        return tasks
+        print('Raw tasks count: ${tasks.length}');
+        final mappedTasks = tasks
             .map((taskJson) => _mapTaskFromJson(taskJson))
             .whereType<Task>()
             .toList();
+        print('Mapped tasks count: ${mappedTasks.length}');
+        return mappedTasks;
       }
 
       throw Exception(data['message'] ?? 'Failed to fetch tasks');
     } catch (e) {
+      print('Error in fetchNearbyTasks: $e');
       throw Exception('Unable to load tasks: $e');
     }
   }
@@ -136,7 +144,7 @@ class TaskService {
     if (json == null) return null;
 
     final price = _toDouble(json['reward']);
-    final postedTime = DateTime.tryParse('${json['createdAt']}') ?? DateTime.now();
+    final postedTime = DateTime.tryParse('${json['createdAt'] ?? json['created_at']}') ?? DateTime.now();
     final dueDateRaw = json['dueDate'];
     final dueDate = dueDateRaw != null ? DateTime.tryParse('$dueDateRaw') : null;
     final category = (json['category'] ?? json['task_category'] ?? 'Misc').toString();
@@ -150,7 +158,7 @@ class TaskService {
       price: price,
       postedTime: postedTime,
       dueDate: dueDate,
-      location: json['locationName'] ?? json['location_name'] ?? 'No location specified',
+      location: json['location'] ?? json['locationName'] ?? json['location_name'] ?? 'No location specified',
       postedBy: requesterName,
       category: category,
       isMyTask: isMineOverride || (json['isMine'] == true),

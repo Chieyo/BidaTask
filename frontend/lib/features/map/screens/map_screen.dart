@@ -4,6 +4,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as latlng;
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../../services/task_service.dart';
+import '../../../domain/models/task_model.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -13,6 +15,9 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
+  final TaskService _taskService = TaskService();
+List<Task> _allTasks = [];
+
   final MapController _mapController = MapController();
   bool _isMapReady = false;
   bool _isLoading = true;
@@ -20,7 +25,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   String? _errorMessage;
   latlng.LatLng? _currentPosition;
   static const latlng.LatLng _initialPosition = latlng.LatLng(13.6214, 123.1947); // Naga City
-  final List<Marker> _markers = [];
+  final List<Marker> _markers = []; // Task markers only
+  Marker? _currentLocationMarker; // Separate current location marker
+  String _searchQuery = ''; // Search query
+  List<Task> _filteredTasks = []; // Filtered tasks based on search
   
   // Store the last known position
   latlng.LatLng? _lastKnownPosition;
@@ -28,11 +36,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   String _selectedUrgency = 'medium';
   bool _receiveNotifications = true;
   final List<Map<String, dynamic>> _taskCategories = [
-    {'name': 'Household / Chores', 'selected': false},
-    {'name': 'Errands / Delivery', 'selected': false},
-    {'name': 'Digital / Online Tasks', 'selected': false},
+    {'name': 'Household Chores', 'selected': false},
+    {'name': 'Delivery', 'selected': false},
+    {'name': 'Online Assistance', 'selected': false}, // Check for hidden characters
     {'name': 'General Assistance', 'selected': false},
-    {'name': 'Miscellaneous', 'selected': false},
+    {'name': 'Shopping', 'selected': false},
+    {'name': 'Personal', 'selected': false},
   ];
 
   final List<Map<String, dynamic>> _urgencyLevels = [
@@ -54,6 +63,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     try {
       setState(() => _isLoading = true);
       await _getCurrentLocation();
+      await _fetchAndDisplayTasks();
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -65,6 +75,401 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _fetchAndDisplayTasks() async {
+    // Don't require current position to fetch tasks
+    
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Get selected categories
+      final selectedCategoryNames = _taskCategories
+          .where((cat) => cat['selected'] == true)
+          .map((cat) => cat['name'] as String)
+          .toList();
+      
+      // Debug print
+      debugPrint('Selected categories: $selectedCategoryNames');
+      
+      // Fetch tasks
+      List<Task> tasks;
+      if (selectedCategoryNames.isEmpty) {
+        // No categories selected, fetch all tasks
+        debugPrint('Fetching all tasks');
+        tasks = await _taskService.fetchNearbyTasks(category: null);
+      } else if (selectedCategoryNames.length == 1) {
+        // Single category selected, filter by that category
+        debugPrint('Fetching tasks with category: ${selectedCategoryNames.first}');
+        tasks = await _taskService.fetchNearbyTasks(category: selectedCategoryNames.first);
+        debugPrint('API returned ${tasks.length} tasks for category "${selectedCategoryNames.first}"');
+        debugPrint('Looking for exact match with: "${selectedCategoryNames.first}"');
+        for (var task in tasks) {
+          debugPrint('  - Task: "${task.title}", Category: "${task.category}" - Match: ${task.category == selectedCategoryNames.first}');
+        }
+        
+        // If API returns tasks but none match exactly, try case-insensitive comparison
+        if (tasks.isNotEmpty) {
+          final matchingTasks = tasks.where((task) => 
+            task.category.toLowerCase() == selectedCategoryNames.first.toLowerCase()
+          ).toList();
+          debugPrint('Case-insensitive matches: ${matchingTasks.length}');
+          if (matchingTasks.length != tasks.length) {
+            tasks = matchingTasks;
+            debugPrint('Using case-insensitive filtered tasks: ${tasks.length}');
+          }
+        }
+      } else {
+        // Multiple categories selected, fetch all and filter client-side
+        debugPrint('Fetching all tasks for multiple category filter');
+        final allTasks = await _taskService.fetchNearbyTasks(category: null);
+        tasks = allTasks.where((task) => selectedCategoryNames.contains(task.category)).toList();
+      }
+      
+      // Apply urgency filter
+      final selectedUrgencyNames = _urgencyLevels
+          .where((level) => level['selected'] == true)
+          .map((level) => level['name'] as String)
+          .toList();
+      
+      debugPrint('Selected urgency names: $selectedUrgencyNames');
+      
+      if (selectedUrgencyNames.isNotEmpty) {
+        debugPrint('Applying urgency filter: $selectedUrgencyNames');
+        final originalTaskCount = tasks.length;
+        tasks = tasks.where((task) {
+          final priority = task.isUrgent ? 'urgent' : 'normal';
+          debugPrint('Task: ${task.title}, Priority: $priority, isUrgent: ${task.isUrgent}');
+          return selectedUrgencyNames.any((urgency) {
+            switch (urgency.toLowerCase()) {
+              case 'urgent':
+                debugPrint('  Checking urgent: priority == urgent? ${priority == 'urgent'}');
+                return priority == 'urgent';
+              case 'within a week':
+                debugPrint('  Checking within a week: priority normal/urgent? ${priority == 'normal' || priority == 'urgent'}');
+                return priority == 'normal' || priority == 'urgent';
+              case 'flexible':
+                debugPrint('  Checking flexible: always true');
+                return true; // Show all for flexible
+              default:
+                debugPrint('  Unknown urgency: $urgency');
+                return false;
+            }
+          });
+        }).toList();
+        debugPrint('Urgency filter: $originalTaskCount -> ${tasks.length} tasks');
+      } else {
+        debugPrint('No urgency filter applied, keeping all ${tasks.length} tasks');
+      }
+      debugPrint('Fetched ${tasks.length} tasks');
+      
+      // Clear existing markers
+      debugPrint('Clearing ${_markers.length} existing markers');
+      _markers.clear();
+      
+      // Add task markers
+      debugPrint('Processing ${tasks.length} tasks for markers...');
+      for (var task in tasks) {
+        debugPrint('Task: ${task.title}, Category: ${task.category}, Location: ${task.location}');
+        latlng.LatLng location;
+        
+        // Parse location from PostGIS POINT format
+        if (task.location != null && task.location.toString().startsWith('POINT(')) {
+          try {
+            // Extract coordinates from "POINT(longitude latitude)"
+            final pointStr = task.location.toString().replaceAll('POINT(', '').replaceAll(')', '');
+            final coords = pointStr.split(' ');
+            if (coords.length == 2) {
+              final longitude = double.parse(coords[0]);
+              final latitude = double.parse(coords[1]);
+              location = latlng.LatLng(latitude, longitude);
+            } else {
+              location = latlng.LatLng(13.6214, 123.1947); // Default to Naga City
+            }
+          } catch (e) {
+            location = latlng.LatLng(13.6214, 123.1947); // Default to Naga City
+          }
+        } else {
+          location = latlng.LatLng(13.6214, 123.1947); // Default to Naga City
+        }
+        
+        debugPrint('Creating marker at: ${location.latitude}, ${location.longitude}');
+        debugPrint('Current position: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}');
+        
+        // Add offset if marker is at current position to make it visible
+        if (_currentPosition != null && 
+            (location.latitude - _currentPosition!.latitude).abs() < 0.001 &&
+            (location.longitude - _currentPosition!.longitude).abs() < 0.001) {
+          debugPrint('Marker at current position, adding offset');
+          // Add a small random offset to make markers at same location visible
+          final randomOffset = (task.title.hashCode % 10) * 0.0001;
+          location = latlng.LatLng(
+            location.latitude + 0.0002 + randomOffset, // North offset
+            location.longitude + 0.0002 + randomOffset, // East offset
+          );
+          debugPrint('Adjusted marker location to: ${location.latitude}, ${location.longitude}');
+        }
+        
+        final marker = Marker(
+          width: 50.0,
+          height: 50.0,
+          point: location,
+          child: GestureDetector(
+            onTap: () => _showTaskDetails(task),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(25),
+                border: Border.all(
+                  color: _getUrgencyColor(task.isUrgent ? 'urgent' : 'normal'),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                _getCategoryIcon(task.category),
+                color: _getUrgencyColor(task.isUrgent ? 'urgent' : 'normal'),
+                size: 30.0,
+              ),
+            ),
+          ),
+        );
+        _markers.add(marker);
+        debugPrint('Marker added for task: ${task.title}. Total markers: ${_markers.length}');
+      }
+
+      debugPrint('Calling setState to update UI with ${_markers.length} markers');
+      setState(() {
+        _allTasks = tasks;
+        _isLoading = false;
+      });
+      
+      // Apply search and filters after fetching tasks
+      _applySearchAndFilters();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load tasks: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showTaskDetails(Task task) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(task.title),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(task.description ?? 'No description'),
+            const SizedBox(height: 8),
+            Text('Category: ${task.category}'),
+            Text('Urgent: ${task.isUrgent ? "Yes" : "No"}'),
+            Text('Price: ${task.formattedPrice}'),
+            if (task.dueDate != null)
+              Text('Due Date: ${task.dueDate!.toString().split(' ')[0]}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateFilters() {
+    _applySearchAndFilters();
+  }
+
+  void _applySearchAndFilters() {
+    debugPrint('_applySearchAndFilters called');
+    debugPrint('Search query: "$_searchQuery"');
+    debugPrint('Total _allTasks count: ${_allTasks.length}');
+    
+    // Start with all tasks
+    List<Task> filteredTasks = List.from(_allTasks);
+    
+    // Apply search filter
+    if (_searchQuery.isNotEmpty) {
+      debugPrint('Applying search filter for: "$_searchQuery"');
+      filteredTasks = filteredTasks.where((task) {
+        final titleMatch = task.title.toLowerCase().contains(_searchQuery);
+        final categoryMatch = task.category.toLowerCase().contains(_searchQuery);
+        final descriptionMatch = task.description?.toLowerCase().contains(_searchQuery) ?? false;
+        debugPrint('Task: ${task.title} - Title: $titleMatch, Category: $categoryMatch, Description: $descriptionMatch');
+        return titleMatch || categoryMatch || descriptionMatch;
+      }).toList();
+      debugPrint('Search filtered tasks count: ${filteredTasks.length}');
+    }
+    
+    // Apply category filters
+    final selectedCategoryNames = _taskCategories
+        .where((cat) => cat['selected'] == true)
+        .map((cat) => cat['name'] as String)
+        .toList();
+    
+    if (selectedCategoryNames.isNotEmpty) {
+      filteredTasks = filteredTasks.where((task) => 
+        selectedCategoryNames.contains(task.category)
+      ).toList();
+    }
+    
+    // Apply urgency filters
+    final selectedUrgencyNames = _urgencyLevels
+        .where((level) => level['selected'] == true)
+        .map((level) => level['name'] as String)
+        .toList();
+    
+    if (selectedUrgencyNames.isNotEmpty) {
+      debugPrint('Applying urgency filter: $selectedUrgencyNames');
+      final beforeUrgencyFilter = filteredTasks.length;
+      filteredTasks = filteredTasks.where((task) {
+        final priority = task.isUrgent ? 'urgent' : 'normal';
+        final matches = selectedUrgencyNames.any((urgency) {
+          switch (urgency.toLowerCase()) {
+            case 'urgent':
+              debugPrint('  Task "${task.title}": priority=$priority, checking urgent -> ${priority == 'urgent'}');
+              return priority == 'urgent';
+            case 'within a week':
+              debugPrint('  Task "${task.title}": priority=$priority, checking within a week -> ${priority == 'normal' || priority == 'urgent'}');
+              return priority == 'normal' || priority == 'urgent'; // Show all tasks
+            case 'flexible':
+              debugPrint('  Task "${task.title}": priority=$priority, checking flexible -> ${priority == 'normal'}');
+              return priority == 'normal'; // Show only non-urgent (flexible) tasks
+            default:
+              return false;
+          }
+        });
+        return matches;
+      }).toList();
+      debugPrint('Urgency filter: $beforeUrgencyFilter -> ${filteredTasks.length} tasks');
+    }
+    
+    // Update filtered tasks and rebuild markers
+    _filteredTasks = filteredTasks;
+    _buildMarkersFromTasks(_filteredTasks);
+  }
+
+  void _buildMarkersFromTasks(List<Task> tasks) {
+    // Clear existing markers
+    _markers.clear();
+    
+    // Add task markers
+    for (var task in tasks) {
+      latlng.LatLng location;
+      
+      // Parse location from PostGIS POINT format
+      if (task.location != null && task.location.toString().startsWith('POINT(')) {
+        try {
+          // Extract coordinates from "POINT(longitude latitude)"
+          final pointStr = task.location.toString().replaceAll('POINT(', '').replaceAll(')', '');
+          final coords = pointStr.split(' ');
+          if (coords.length == 2) {
+            final longitude = double.parse(coords[0]);
+            final latitude = double.parse(coords[1]);
+            location = latlng.LatLng(latitude, longitude);
+          } else {
+            location = latlng.LatLng(13.6214, 123.1947); // Default to Naga City
+          }
+        } catch (e) {
+          location = latlng.LatLng(13.6214, 123.1947); // Default to Naga City
+        }
+      } else {
+        location = latlng.LatLng(13.6214, 123.1947); // Default to Naga City
+      }
+      
+      // Add offset if marker is at current position to make it visible
+      if (_currentPosition != null && 
+          (location.latitude - _currentPosition!.latitude).abs() < 0.001 &&
+          (location.longitude - _currentPosition!.longitude).abs() < 0.001) {
+        // Add a small random offset to make markers at same location visible
+        final randomOffset = (task.title.hashCode % 10) * 0.0001;
+        location = latlng.LatLng(
+          location.latitude + 0.0002 + randomOffset, // North offset
+          location.longitude + 0.0002 + randomOffset, // East offset
+        );
+      }
+      
+      final marker = Marker(
+        width: 50.0,
+        height: 50.0,
+        point: location,
+        child: GestureDetector(
+          onTap: () => _showTaskDetails(task),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(25),
+              border: Border.all(
+                color: _getUrgencyColor(task.isUrgent ? 'urgent' : 'normal'),
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              _getCategoryIcon(task.category),
+              color: _getUrgencyColor(task.isUrgent ? 'urgent' : 'normal'),
+              size: 30.0,
+            ),
+          ),
+        ),
+      );
+      _markers.add(marker);
+    }
+    
+    setState(() {});
+  }
+
+  // Center map on all visible markers
+  void _centerOnMarkers() {
+    debugPrint('_centerOnMarkers called. Markers count: ${_markers.length}, Map ready: $_isMapReady');
+    
+    if (_markers.isEmpty || !_isMapReady) {
+      debugPrint('Cannot center: No markers or map not ready');
+      return;
+    }
+    
+    // Calculate bounds of all markers
+    double minLat = _markers.first.point.latitude;
+    double maxLat = _markers.first.point.latitude;
+    double minLng = _markers.first.point.longitude;
+    double maxLng = _markers.first.point.longitude;
+    
+    for (var marker in _markers) {
+      debugPrint('Marker at: ${marker.point.latitude}, ${marker.point.longitude}');
+      if (marker.point.latitude < minLat) minLat = marker.point.latitude;
+      if (marker.point.latitude > maxLat) maxLat = marker.point.latitude;
+      if (marker.point.longitude < minLng) minLng = marker.point.longitude;
+      if (marker.point.longitude > maxLng) maxLng = marker.point.longitude;
+    }
+    
+    // Calculate center point
+    double centerLat = (minLat + maxLat) / 2;
+    double centerLng = (minLng + maxLng) / 2;
+    
+    debugPrint('Centering on: $centerLat, $centerLng');
+    // Move map to center of markers
+    _mapController.move(latlng.LatLng(centerLat, centerLng), 14.0);
   }
 
   @override
@@ -84,7 +489,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Widget _buildSearchBar(BuildContext context) {
     return TextField(
       decoration: InputDecoration(
-        hintText: 'Search...',
+        hintText: 'Search tasks or categories...',
         prefixIcon: const Icon(Icons.search, color: Colors.grey),
         filled: true,
         fillColor: Colors.white,
@@ -103,41 +508,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
       ),
       onChanged: (value) {
-        // Handle search
+        debugPrint('Search input changed to: "$value"');
+        setState(() {
+          _searchQuery = value.toLowerCase();
+          _applySearchAndFilters();
+        });
       },
     );
   }
 
-  Widget _buildActionButtons() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(top: 8, bottom: 8),
-      child: ElevatedButton(
-        onPressed: () {
-          // Handle apply
-          Navigator.pop(context);
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF4CAF50),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        child: const Text(
-          'Apply',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Removed duplicate _buildSectionTitle method
-
+  
   Widget _buildCategoryChips() {
     final categories = [
       'House Cleaning',
@@ -233,30 +613,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildNotificationToggle() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Text(
-          'Notify me when there is a task nearby',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.black87,
-          ),
-        ),
-        Switch.adaptive(
-          value: _receiveNotifications,
-          activeColor: const Color(0xFF2E7D32),
-          onChanged: (value) {
-            setState(() {
-              _receiveNotifications = value!;
-            });
-          },
-        ),
-      ],
-    );
-  }
-
   Future<void> _checkLocationPermission() async {
     setState(() {
       _isLoading = true;
@@ -304,7 +660,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('Building map with ${_markers.length} markers');
+    
+    // Add a test marker to verify markers are working
+    if (_markers.isNotEmpty) {
+      debugPrint('Markers available: ${_markers.map((m) => '(${m.point.latitude}, ${m.point.longitude})').join(', ')}');
+    }
+    
     return Scaffold(
+      backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: false,
+      extendBodyBehindAppBar: true,
       body: Stack(
         children: [
           // Map
@@ -321,7 +687,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 userAgentPackageName: 'com.bidatask.app',
               ),
               MarkerLayer(
-                markers: _markers,
+                markers: [
+                  if (_currentLocationMarker != null) _currentLocationMarker!,
+                  ..._markers,
+                ],
               ),
             ],
           ),
@@ -401,7 +770,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-    );
+          );
   }
 
   Widget _buildSidebar() {
@@ -410,9 +779,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     
     final screenSize = MediaQuery.of(context).size;
     // Using exact width from Figma and dynamic height
-    const sidebarWidth = 286.0; // 286.dp
-    // Calculate height to be screen height minus top padding (status bar + app bar + some spacing)
-    final sidebarHeight = MediaQuery.of(context).size.height - statusBarHeight - appBarHeight - 8.0; // 8.0 is extra spacing
+    final sidebarWidth = screenSize.width / 2; // Half of screen width
+    // Height from top of search bar to bottom of screen, minus 60 pixels to prevent overflow
+    final sidebarHeight = screenSize.height - statusBarHeight - appBarHeight;
     
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 300),
@@ -427,137 +796,63 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           width: sidebarWidth,
           height: sidebarHeight,
           decoration: BoxDecoration(
-            color: const Color(0xFFF9FAFB), // Light gray background
+            color: Colors.white, // Clean white background
             borderRadius: const BorderRadius.only(
               topRight: Radius.circular(20.0), // 20.dp topEnd
               bottomRight: Radius.circular(20.0), // 20.dp bottomEnd
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0x40000000), // Shadow color with 25% opacity
+                color: Colors.black.withOpacity(0.15), // Softer shadow
                 spreadRadius: 0,
-                blurRadius: 3, // 3.dp elevation
-                offset: const Offset(0, 3), // 3.dp elevation
+                blurRadius: 10, // Increased blur for softer shadow
+                offset: const Offset(-2, 0), // Shadow on left side
               ),
             ],
           ),
           child: Padding(
-            padding: EdgeInsets.zero,
+            padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Map',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF111827),
-                        height: 24 / 20, // line height / font size
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () {
-                        setState(() {
-                          _isSidebarOpen = false;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                
-                // Task Categories Section
-                const Text(
-                  'Task Categories',
-                  style: TextStyle(
-                    color: Color(0xFF6C757D),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    height: 24 / 13, // line height / font size
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ..._buildCheckboxList(_taskCategories),
-                const SizedBox(height: 16),
-                
-                // Urgency Section
-                const Text(
-                  'Urgency',
-                  style: TextStyle(
-                    color: Color(0xFF6C757D),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    height: 24 / 13, // line height / font size
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ..._buildCheckboxList(_urgencyLevels),
-                const SizedBox(height: 16),
-                
-                // Notification Toggle
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Nearby task alert',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    Transform.scale(
-                      scale: 0.9,
-                      child: Switch.adaptive(
-                        value: _receiveNotifications,
-                        onChanged: (value) {
-                          setState(() {
-                            _receiveNotifications = value;
-                          });
-                        },
-                        activeColor: Colors.blue,
-                        activeTrackColor: Colors.blue.withOpacity(0.3),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                
-                // Current Location Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _isSidebarOpen = false;
-                      });
-                      _centerViewOnUserLocation();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.my_location, size: 16),
-                    label: const Text(
-                      'Current Location',
-                      style: TextStyle(fontSize: 13),
+                // Header
+                Center(
+                  child: Text(
+                    'Map',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF1F2937),
+                      height: 1.2,
                     ),
                   ),
                 ),
+                const SizedBox(height: 24),
+                
+                // Scrollable content
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Task Categories Section
+                        _buildSectionHeader('Task Categories', null),
+                        const SizedBox(height: 12),
+                        ..._buildEnhancedCheckboxList(_taskCategories, isCategory: true),
+                        const SizedBox(height: 20),
+                        
+                        // Urgency Section
+                        _buildSectionHeader('Urgency Level', null),
+                        const SizedBox(height: 12),
+                        ..._buildEnhancedCheckboxList(_urgencyLevels, isCategory: false),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // Action Buttons at bottom
+                _buildActionButtons(),
               ],
             ),
           ),
@@ -566,30 +861,245 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
-  List<Widget> _buildCheckboxList(List<Map<String, dynamic>> items) {
+  // Enhanced checkbox list with better UX
+  List<Widget> _buildEnhancedCheckboxList(List<Map<String, dynamic>> items, {required bool isCategory}) {
     return items.map((item) {
-      return CheckboxListTile(
-        title: Text(
-          item['name'],
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF111827),
-            height: 24 / 15, // line height / font size
-            letterSpacing: 0.5,
+      return Material(
+        color: Colors.transparent,
+        elevation: 0,
+        child: InkWell(
+          onTap: () {
+            debugPrint('Checkbox changed: ${item['name']} = ${!item['selected']}');
+            setState(() {
+              item['selected'] = !item['selected'];
+              _updateFilters();
+            });
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: item['selected'] 
+                  ? (isCategory ? const Color(0xFFEBF5FF) : const Color(0xFFF0FDF4))
+                  : Colors.transparent,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  // Checkbox
+                  Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: item['selected'] 
+                          ? (isCategory ? const Color(0xFF3B82F6) : const Color(0xFF10B981))
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: item['selected'] 
+                            ? (isCategory ? const Color(0xFF3B82F6) : const Color(0xFF10B981))
+                            : const Color(0xFFD1D5DB),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: item['selected']
+                        ? Icon(
+                            Icons.check,
+                            size: 14,
+                            color: Colors.white,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  // Label
+                  Expanded(
+                    child: Text(
+                      item['name'],
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black, // Black color for content
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  // Badge showing count (optional - for future enhancement)
+                  if (item['selected'])
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: (isCategory ? const Color(0xFF3B82F6) : const Color(0xFF10B981)).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '✓',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isCategory ? const Color(0xFF3B82F6) : const Color(0xFF10B981),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
-        value: item['selected'],
-        onChanged: (value) {
-          setState(() {
-            item['selected'] = value;
-          });
-        },
-        controlAffinity: ListTileControlAffinity.leading,
-        contentPadding: EdgeInsets.zero,
-        dense: true,
       );
     }).toList();
+  }
+
+  // Section header
+  Widget _buildSectionHeader(String title, IconData? icon) {
+    if (icon != null) {
+      return Row(
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: const Color(0xFF6B7280),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF6B7280), // Gray color for headers
+            ),
+          ),
+        ],
+      );
+    } else {
+      return Text(
+        title,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF6B7280), // Gray color for headers
+        ),
+      );
+    }
+  }
+
+  // Enhanced notification toggle
+  Widget _buildNotificationToggle() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.notifications_outlined,
+                size: 18,
+                color: const Color(0xFF6B7280),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Nearby task alerts',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF374151),
+                ),
+              ),
+            ],
+          ),
+          Switch.adaptive(
+            value: _receiveNotifications,
+            onChanged: (value) {
+              setState(() {
+                _receiveNotifications = value;
+              });
+            },
+            activeColor: const Color(0xFF3B82F6),
+            activeTrackColor: const Color(0xFFEBF5FF),
+            inactiveThumbColor: const Color(0xFF9CA3AF),
+            inactiveTrackColor: const Color(0xFFE5E7EB),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Action buttons at the bottom
+  Widget _buildActionButtons() {
+    return Column(
+      children: [
+        // Clear filters button
+        SizedBox(
+          width: double.infinity,
+          child: TextButton.icon(
+            onPressed: () {
+              setState(() {
+                // Clear all filters and search
+                _searchQuery = '';
+                for (var category in _taskCategories) {
+                  category['selected'] = false;
+                }
+                for (var urgency in _urgencyLevels) {
+                  urgency['selected'] = false;
+                }
+                _applySearchAndFilters();
+              });
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF6B7280),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+            ),
+            icon: const Icon(Icons.clear_outlined, size: 16),
+            label: const Text(
+              'Clear All Filters',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Current location button
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              setState(() {
+                _isSidebarOpen = false;
+              });
+              _centerViewOnUserLocation();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3B82F6),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: const Icon(Icons.location_on, color: Colors.red, size: 16),
+            label: const Text(
+              'Center on Location',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Keep the original method for backward compatibility
+  List<Widget> _buildCheckboxList(List<Map<String, dynamic>> items) {
+    return _buildEnhancedCheckboxList(items, isCategory: true);
   }
 
   void _onMapCreated() {
@@ -615,17 +1125,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       debugPrint('Centering on position: ${position.latitude}, ${position.longitude}');
       await _mapController.move(position, 15.0);
       
-      _markers.clear();
-      _markers.add(
-        Marker(
-          width: 40.0,
-          height: 40.0,
-          point: position,
-          child: const Icon(
-            Icons.location_pin,
-            color: Colors.red,
-            size: 40.0,
-          ),
+      // Update current location marker
+      _currentLocationMarker = Marker(
+        width: 40.0,
+        height: 40.0,
+        point: position,
+        child: const Icon(
+          Icons.location_pin,
+          color: Colors.red,
+          size: 40.0,
         ),
       );
       
@@ -804,6 +1312,41 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         );
       }
       rethrow;
+    }
+  }
+
+  Color _getUrgencyColor(String priority) {
+    switch (priority.toLowerCase()) {
+      case 'high':
+      case 'urgent':
+        return Colors.red;
+      case 'medium':
+      case 'normal':
+        return Colors.orange;
+      case 'low':
+      case 'flexible':
+        return Colors.green;
+      default:
+        return Colors.blue;
+    }
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'household chores':
+        return Icons.cleaning_services;
+      case 'delivery':
+        return Icons.local_shipping;
+      case 'online assistance':
+        return Icons.computer;
+      case 'general assistance':
+        return Icons.help_outline;
+      case 'shopping':
+        return Icons.shopping_cart;
+      case 'personal':
+        return Icons.person;
+      default:
+        return Icons.task_alt;
     }
   }
 
