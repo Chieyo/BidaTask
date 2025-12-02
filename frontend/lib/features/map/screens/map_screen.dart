@@ -296,16 +296,24 @@ List<Task> _allTasks = [];
   }
 
   void _applySearchAndFilters() {
+    debugPrint('_applySearchAndFilters called');
+    debugPrint('Search query: "$_searchQuery"');
+    debugPrint('Total _allTasks count: ${_allTasks.length}');
+    
     // Start with all tasks
     List<Task> filteredTasks = List.from(_allTasks);
     
     // Apply search filter
     if (_searchQuery.isNotEmpty) {
+      debugPrint('Applying search filter for: "$_searchQuery"');
       filteredTasks = filteredTasks.where((task) {
-        return task.title.toLowerCase().contains(_searchQuery) ||
-               task.category.toLowerCase().contains(_searchQuery) ||
-               (task.description?.toLowerCase().contains(_searchQuery) ?? false);
+        final titleMatch = task.title.toLowerCase().contains(_searchQuery);
+        final categoryMatch = task.category.toLowerCase().contains(_searchQuery);
+        final descriptionMatch = task.description?.toLowerCase().contains(_searchQuery) ?? false;
+        debugPrint('Task: ${task.title} - Title: $titleMatch, Category: $categoryMatch, Description: $descriptionMatch');
+        return titleMatch || categoryMatch || descriptionMatch;
       }).toList();
+      debugPrint('Search filtered tasks count: ${filteredTasks.length}');
     }
     
     // Apply category filters
@@ -327,21 +335,28 @@ List<Task> _allTasks = [];
         .toList();
     
     if (selectedUrgencyNames.isNotEmpty) {
+      debugPrint('Applying urgency filter: $selectedUrgencyNames');
+      final beforeUrgencyFilter = filteredTasks.length;
       filteredTasks = filteredTasks.where((task) {
         final priority = task.isUrgent ? 'urgent' : 'normal';
-        return selectedUrgencyNames.any((urgency) {
+        final matches = selectedUrgencyNames.any((urgency) {
           switch (urgency.toLowerCase()) {
             case 'urgent':
+              debugPrint('  Task "${task.title}": priority=$priority, checking urgent -> ${priority == 'urgent'}');
               return priority == 'urgent';
             case 'within a week':
-              return priority == 'normal' || priority == 'urgent';
+              debugPrint('  Task "${task.title}": priority=$priority, checking within a week -> ${priority == 'normal' || priority == 'urgent'}');
+              return priority == 'normal' || priority == 'urgent'; // Show all tasks
             case 'flexible':
-              return true;
+              debugPrint('  Task "${task.title}": priority=$priority, checking flexible -> ${priority == 'normal'}');
+              return priority == 'normal'; // Show only non-urgent (flexible) tasks
             default:
               return false;
           }
         });
+        return matches;
       }).toList();
+      debugPrint('Urgency filter: $beforeUrgencyFilter -> ${filteredTasks.length} tasks');
     }
     
     // Update filtered tasks and rebuild markers
@@ -493,6 +508,7 @@ List<Task> _allTasks = [];
         ),
       ),
       onChanged: (value) {
+        debugPrint('Search input changed to: "$value"');
         setState(() {
           _searchQuery = value.toLowerCase();
           _applySearchAndFilters();
