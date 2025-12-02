@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
   // Use 10.0.2.2 for Android emulator to reach host machine
@@ -61,9 +62,7 @@ class AuthService {
 
       final response = await http.post(
         Uri.parse('$baseUrl/signup'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode(requestBody),
       );
 
@@ -85,10 +84,7 @@ class AuthService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error: $e',
-      };
+      return {'success': false, 'message': 'Network error: $e'};
     }
   }
 
@@ -100,13 +96,8 @@ class AuthService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/signin'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-        }),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'password': password}),
       );
 
       final data = jsonDecode(response.body);
@@ -126,10 +117,7 @@ class AuthService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error: $e',
-      };
+      return {'success': false, 'message': 'Network error: $e'};
     }
   }
 
@@ -139,10 +127,7 @@ class AuthService {
       final token = await getToken();
 
       if (token == null) {
-        return {
-          'success': false,
-          'message': 'No token found',
-        };
+        return {'success': false, 'message': 'No token found'};
       }
 
       final response = await http.post(
@@ -165,10 +150,7 @@ class AuthService {
     } catch (e) {
       // Remove token even if request fails
       await _removeToken();
-      return {
-        'success': true,
-        'message': 'Signed out locally',
-      };
+      return {'success': true, 'message': 'Signed out locally'};
     }
   }
 
@@ -178,10 +160,7 @@ class AuthService {
       final token = await getToken();
 
       if (token == null) {
-        return {
-          'success': false,
-          'message': 'No token found',
-        };
+        return {'success': false, 'message': 'No token found'};
       }
 
       final response = await http.get(
@@ -195,10 +174,7 @@ class AuthService {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'user': data['data']['user'],
-        };
+        return {'success': true, 'user': data['data']['user']};
       } else {
         return {
           'success': false,
@@ -206,10 +182,7 @@ class AuthService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error: $e',
-      };
+      return {'success': false, 'message': 'Network error: $e'};
     }
   }
 
@@ -222,10 +195,7 @@ class AuthService {
       final token = await getToken();
 
       if (token == null) {
-        return {
-          'success': false,
-          'message': 'No token found',
-        };
+        return {'success': false, 'message': 'No token found'};
       }
 
       final body = <String, dynamic>{};
@@ -257,10 +227,7 @@ class AuthService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error: $e',
-      };
+      return {'success': false, 'message': 'Network error: $e'};
     }
   }
 
@@ -268,5 +235,22 @@ class AuthService {
   Future<bool> isAuthenticated() async {
     final token = await getToken();
     return token != null;
+  }
+
+  /// Sign in with Google via Supabase Web OAuth
+  Future<Map<String, dynamic>> signInWithGoogle() async {
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'bidatask://login-callback',
+      );
+
+      return {
+        'success': true,
+        'message': 'Google OAuth initiated successfully',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Google login error: $e'};
+    }
   }
 }
