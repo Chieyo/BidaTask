@@ -4,6 +4,7 @@ import '../../domain/models/task.dart';
 import '../../domain/enums/task_status.dart';
 import '../widgets/task_item.dart';
 import '../widgets/task_form.dart';
+import '../widgets/background/animated_background.dart';
 
 class TaskManagerScreen extends StatefulWidget {
   const TaskManagerScreen({Key? key}) : super(key: key);
@@ -275,6 +276,36 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTicker
   int _selectedIndex = 0;
   final List<String> _tabs = ['Today', 'Upcoming', 'Completed'];
 
+  Widget _buildLoadingScreen() {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+
+  Widget _buildErrorScreen() {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _errorMessage!,
+              style: const TextStyle(color: Colors.red, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadTasks,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeTasks = _tasks.where((task) => task.status != TaskStatus.completed).toList();
@@ -290,153 +321,132 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTicker
     ).toList();
 
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return _buildLoadingScreen();
     }
 
     if (_errorMessage != null) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _errorMessage!,
-                style: const TextStyle(color: Colors.red, fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadTasks,
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
+      return _buildErrorScreen();
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Task Manager',
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
+    return AnimatedBackground(
+      child: Scaffold(
+        extendBody: true,
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text(
+            'My Tasks',
+            style: GoogleFonts.poppins(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
           ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search, size: 28),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, size: 28),
-            onPressed: () {},
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(50),
-          child: Container(
-            height: 50,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: _tabs.length,
-              itemBuilder: (context, index) {
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = index;
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      color: _selectedIndex == index 
-                          ? const Color(0xFF5B67CA) 
-                          : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _tabs[index],
-                      style: GoogleFonts.poppins(
-                        color: _selectedIndex == index ? Colors.white : Colors.black87,
-                        fontWeight: FontWeight.w500,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.search, size: 26, color: Colors.white),
+              onPressed: () {},
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(60),
+            child: Container(
+              height: 50,
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _tabs.length,
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = index;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _selectedIndex == index 
+                            ? Colors.white 
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: _selectedIndex == index
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Text(
+                        _tabs[index],
+                        style: GoogleFonts.poppins(
+                          color: _selectedIndex == index 
+                              ? const Color(0xFF1E88E5) 
+                              : Colors.white,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ),
-      ),
-      body: _showTaskForm
-          ? TaskForm(
-              initialTask: _editingTask,
-              onSubmit: _handleTaskUpdated,
-              onCancel: () => setState(() {
-                _showTaskForm = false;
-                _editingTask = null;
-              }),
-            )
-          : _buildTaskList(_selectedIndex == 0 
-              ? todayTasks 
-              : _selectedIndex == 1 
-                ? upcomingTasks 
-                : completedTasks),
-      floatingActionButton: _showTaskForm
-          ? null
-          : FloatingActionButton(
-              backgroundColor: const Color(0xFF5B67CA),
-              onPressed: () {
-                setState(() {
-                  _editingTask = null;
-                  _showTaskForm = true;
-                });
-              },
-              child: const Icon(Icons.add, size: 32, color: Colors.white),
-            ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF5B67CA),
-        unselectedItemColor: Colors.grey,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined, size: 28),
-            activeIcon: Icon(Icons.home, size: 28),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today_outlined, size: 26),
-            activeIcon: Icon(Icons.calendar_today, size: 26),
-            label: 'Calendar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle_outline, size: 24),
-            activeIcon: Icon(Icons.add_circle, size: 24),
-            label: 'Add',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_none_outlined, size: 28),
-            activeIcon: Icon(Icons.notifications, size: 28),
-            label: 'Notifications',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline, size: 28),
-            activeIcon: Icon(Icons.person, size: 28),
-            label: 'Profile',
-          ),
-        ],
+        body: Stack(
+          children: [
+            _showTaskForm
+                ? TaskForm(
+                    initialTask: _editingTask,
+                    onSubmit: _handleTaskUpdated,
+                    onCancel: () => setState(() {
+                      _showTaskForm = false;
+                      _editingTask = null;
+                    }),
+                  )
+                : Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: _buildTaskList(
+                      _selectedIndex == 0 
+                          ? todayTasks 
+                          : _selectedIndex == 1 
+                              ? upcomingTasks 
+                              : completedTasks
+                    ),
+                  ),
+            if (!_showTaskForm)
+              Positioned(
+                right: 24,
+                bottom: 24,
+                child: FloatingActionButton(
+                  backgroundColor: const Color(0xFFFFD700),
+                  elevation: 4,
+                  onPressed: () {
+                    setState(() {
+                      _editingTask = null;
+                      _showTaskForm = true;
+                    });
+                  },
+                  child: const Icon(Icons.add, size: 32, color: Colors.black87),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
