@@ -231,7 +231,6 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
       'Online Assistance',
       'General Assistance',
       'Personal',
-      'Misc',
     ];
     
     final filteredTasks = _getFilteredTasks();
@@ -576,9 +575,6 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             } else if (index == 3) {
               // Tasks / Task Manager
               Navigator.pushNamed(context, '/task-manager');
-            } else if (index == 4) {
-              // Profile
-              Navigator.pushNamed(context, '/profile');
             }
           },
           type: BottomNavigationBarType.fixed,

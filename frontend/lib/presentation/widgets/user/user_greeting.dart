@@ -31,7 +31,7 @@ class UserGreeting extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Hi, $username!',
+              'Hi, ${username.split(' ')[0]}!',
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,

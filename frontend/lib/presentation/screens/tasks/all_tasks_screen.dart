@@ -25,7 +25,15 @@ class _AllTasksScreenState extends State<AllTasksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = ['All', 'Shopping', 'Delivery', 'Chores', 'Misc'];
+    final categories = [
+      'All',
+      'Delivery',
+      'Shopping',
+      'Household Chores',
+      'Online Assistance',
+      'General Assistance',
+      'Personal',
+    ];
     
     return AnimatedBackground(
       child: Scaffold(
