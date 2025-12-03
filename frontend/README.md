@@ -50,15 +50,22 @@ Static resources:
 Unit tests, widget tests, and integration tests.
 
 ## Setup Instructions
-TBD - Will be added during implementation phase.
+
+### Environment Variables
+
+1. Copy `frontend/.env.example` to `frontend/.env` and fill in the Supabase URL/Anon key plus any API endpoints and feature flags.
+2. Copy `backend/.env.example` to `backend/.env` with your server, database, Supabase, AWS, PayMongo, and JWT secrets.
+3. Never commit the filled `.env` files—keep them local or managed via your secret manager.
 
 ## Backend Integration Preparation
 
-Even before wiring the latest Firebase SDKs, the chat data schema has been designed so the new UI and repository code can plug straight into the backend once ready:
+The chat data layer now targets Supabase (Postgres + Realtime). Provision these tables/columns to match the current repository expectations:
 
-- **Tasks collection (acts as chat root)**
-  - Fields: `title`, `description`, `participants` (array of user IDs), `requesterId`, `taskerId`, `status`, `createdAt`, `lastMessageAt`, `lastMessage` (embedded snapshot with sender/content/type/status/timestamp), `typing`, `typingUserId`.
-- **Messages subcollection** (`tasks/{taskId}/messages`)
-  - Fields per message: `senderId`, `senderName`, `senderAvatar`, `content`, `type` (`text`, `image`, `system`), `timestamp`, `status` (`sent`, `delivered`, `read`), `imageUrl` (optional).
+- **`tasks` table** (acts as chat root)
+  - Columns: `id`, `title`, `description`, `participants` (text[] of user IDs), `requester_id`, `tasker_id`, `status`, `created_at`, `last_message_at`, `last_message` (jsonb snapshot with sender/content/type/status/timestamp), `is_typing` (optional flag), `typing_user_id`.
+- **`messages` table**
+  - Columns: `id` (uuid), `task_id`, `sender_id`, `sender_name`, `sender_avatar`, `content`, `type` (`text`, `image`, `system`), `status` (`sent`, `delivered`, `read`), `image_url`, `created_at` (timestamptz).
+- **`task_typing_status` table**
+  - Columns: `task_id`, `user_id`, `is_typing`, `updated_at` (used for typing indicators via Supabase Realtime streams).
 
-That structure matches the `ChatRepositoryImpl` expectations (chat list queries run against `tasks`, message streams watch each `messages` subcollection), so once Firebase dependencies are updated, no additional schema work is needed.
+Additionally, create a Supabase Storage bucket (default `chat-images`) for chat image uploads. Update the bucket name via `ChatRepositoryImpl(storageBucket: 'your-bucket')` if needed.

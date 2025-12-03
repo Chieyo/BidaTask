@@ -1,18 +1,29 @@
+import 'dart:async';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
-import 'package:firebase_database/firebase_database.dart' as database;
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:dartz/dartz.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import '../../domain/entities/message.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
+
 import '../../domain/entities/chat.dart';
+import '../../domain/entities/message.dart';
 import '../../domain/repositories/chat_repository.dart';
 
 class ChatRepositoryImpl implements ChatRepository {
-  final firestore.FirebaseFirestore _firestore = firestore.FirebaseFirestore.instance;
-  final database.FirebaseDatabase _database = database.FirebaseDatabase.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  ChatRepositoryImpl({SupabaseClient? client, String storageBucket = 'chat-images'})
+      : _client = client ?? Supabase.instance.client,
+        _storageBucket = storageBucket;
+
+  final SupabaseClient _client;
+  final String _storageBucket;
+  final Uuid _uuid = const Uuid();
+
+  String? get _currentUserId => _client.auth.currentUser?.id;
+  String? get _currentUserName =>
+      (_client.auth.currentUser?.userMetadata?['full_name'] as String?) ??
+      _client.auth.currentUser?.email ??
+      'Unknown';
+  String? get _currentUserAvatar => _client.auth.currentUser?.userMetadata?['avatar_url'] as String?;
 
   @override
   Future<Either<String, List<Message>>> getMessages(
@@ -21,45 +32,36 @@ class ChatRepositoryImpl implements ChatRepository {
     String? lastMessageId,
   }) async {
     try {
-      firestore.Query query = _firestore
-          .collection('tasks')
-          .doc(taskId)
-          .collection('messages')
-          .orderBy('timestamp', descending: true)
-          .limit(limit);
-
-      if (lastMessageId != null) {
-        query = query.startAfterDocument(
-          await _firestore.collection('tasks').doc(taskId).collection('messages').doc(lastMessageId).get(),
-        );
+      final currentUserId = _currentUserId;
+      if (currentUserId == null) {
+        return Left('User not authenticated');
       }
 
-      firestore.QuerySnapshot snapshot = await query.get();
-      
-      List<Message> messages = snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        return Message(
-          id: doc.id,
-          taskId: taskId,
-          senderId: data['senderId'],
-          senderName: data['senderName'],
-          senderAvatar: data['senderAvatar'],
-          content: data['content'],
-          type: MessageType.values.firstWhere(
-            (type) => type.toString() == data['type'],
-            orElse: () => MessageType.text,
-          ),
-          timestamp: (data['timestamp'] as firestore.Timestamp).toDate(),
-          status: MessageStatus.values.firstWhere(
-            (status) => status.toString() == data['status'],
-            orElse: () => MessageStatus.sent,
-          ),
-          isFromCurrentUser: data['senderId'] == _auth.currentUser?.uid,
-          imageUrl: data['imageUrl'],
-        );
-      }).toList();
+      PostgrestFilterBuilder query = _client
+          .from('messages')
+          .select()
+          .eq('task_id', taskId);
 
-      return Right(messages.reversed.toList());
+      if (lastMessageId != null) {
+        final lastMessage = await _client
+            .from('messages')
+            .select('created_at')
+            .eq('id', lastMessageId)
+            .maybeSingle();
+        final lastCreatedAt = lastMessage?['created_at'] as String?;
+        if (lastCreatedAt != null) {
+          query = query.lt('created_at', lastCreatedAt);
+        }
+      }
+
+      final rows = await query.order('created_at', ascending: false).limit(limit);
+      final messages = rows
+          .map<Message>((row) => _mapRowToMessage(row, currentUserId))
+          .toList()
+          .reversed
+          .toList();
+
+      return Right(messages);
     } catch (e) {
       return Left('Failed to get messages: $e');
     }
@@ -73,43 +75,34 @@ class ChatRepositoryImpl implements ChatRepository {
     String? imageUrl,
   }) async {
     try {
-      String? currentUserId = _auth.currentUser?.uid;
+      final currentUserId = _currentUserId;
       if (currentUserId == null) {
         return Left('User not authenticated');
       }
 
-      firestore.DocumentReference messageRef = _firestore
-          .collection('tasks')
-          .doc(taskId)
-          .collection('messages')
-          .doc();
+      final now = DateTime.now().toUtc();
+      final messageId = _uuid.v4();
+      final payload = {
+        'id': messageId,
+        'task_id': taskId,
+        'sender_id': currentUserId,
+        'sender_name': _currentUserName,
+        'sender_avatar': _currentUserAvatar,
+        'content': content,
+        'type': type.name,
+        'status': MessageStatus.sent.name,
+        'image_url': imageUrl,
+        'created_at': now.toIso8601String(),
+      };
 
-      Message message = Message(
-        id: messageRef.id,
-        taskId: taskId,
-        senderId: currentUserId,
-        senderName: _auth.currentUser?.displayName ?? 'Unknown',
-        senderAvatar: _auth.currentUser?.photoURL,
-        content: content,
-        type: type,
-        timestamp: DateTime.now(),
-        status: MessageStatus.sent,
-        isFromCurrentUser: true,
-        imageUrl: imageUrl,
-      );
+      final row = await _client.from('messages').insert(payload).select().single();
 
-      await messageRef.set({
-        'senderId': message.senderId,
-        'senderName': message.senderName,
-        'senderAvatar': message.senderAvatar,
-        'content': message.content,
-        'type': message.type.toString(),
-        'timestamp': firestore.Timestamp.fromDate(message.timestamp),
-        'status': message.status.toString(),
-        'imageUrl': message.imageUrl,
-      });
+      await _client.from('tasks').update({
+        'last_message_at': row['created_at'],
+        'last_message': row,
+      }).eq('id', taskId);
 
-      return Right(message);
+      return Right(_mapRowToMessage(row, currentUserId));
     } catch (e) {
       return Left('Failed to send message: $e');
     }
@@ -118,9 +111,10 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   Future<Either<String, void>> markMessageAsRead(String messageId) async {
     try {
-      await _firestore.collection('messages').doc(messageId).update({
-        'status': MessageStatus.read.toString(),
-      });
+      await _client
+          .from('messages')
+          .update({'status': MessageStatus.read.name})
+          .eq('id', messageId);
       return Right(null);
     } catch (e) {
       return Left('Failed to mark message as read: $e');
@@ -130,12 +124,16 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   Future<Either<String, void>> sendTypingIndicator(String taskId, bool isTyping) async {
     try {
-      String? currentUserId = _auth.currentUser?.uid;
-      if (currentUserId == null) return Left('User not authenticated');
+      final currentUserId = _currentUserId;
+      if (currentUserId == null) {
+        return Left('User not authenticated');
+      }
 
-      await _database.ref('tasks/$taskId/typing').set({
-        currentUserId: isTyping,
-        'timestamp': database.ServerValue.timestamp,
+      await _client.from('task_typing_status').upsert({
+        'task_id': taskId,
+        'user_id': currentUserId,
+        'is_typing': isTyping,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
 
       return Right(null);
@@ -146,135 +144,58 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Stream<List<Message>> getMessageStream(String taskId) {
-    return _firestore
-        .collection('tasks')
-        .doc(taskId)
-        .collection('messages')
-        .orderBy('timestamp', descending: false)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data();
-        return Message(
-          id: doc.id,
-          taskId: taskId,
-          senderId: data['senderId'],
-          senderName: data['senderName'],
-          senderAvatar: data['senderAvatar'],
-          content: data['content'],
-          type: MessageType.values.firstWhere(
-            (type) => type.toString() == data['type'],
-            orElse: () => MessageType.text,
-          ),
-          timestamp: (data['timestamp'] as firestore.Timestamp).toDate(),
-          status: MessageStatus.values.firstWhere(
-            (status) => status.toString() == data['status'],
-            orElse: () => MessageStatus.sent,
-          ),
-          isFromCurrentUser: data['senderId'] == _auth.currentUser?.uid,
-          imageUrl: data['imageUrl'],
-        );
-      }).toList();
-    });
+    final currentUserId = _currentUserId;
+    return _client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('task_id', taskId)
+        .order('created_at')
+        .map((rows) => rows
+            .map<Message>((row) => _mapRowToMessage(row, currentUserId))
+            .toList());
   }
 
   @override
   Stream<bool> getTypingIndicatorStream(String taskId) {
-    return _database.ref('tasks/$taskId/typing').onValue.map((event) {
-      Map<dynamic, dynamic>? data = event.snapshot.value as Map<dynamic, dynamic>?;
-      if (data == null) return false;
+    final currentUserId = _currentUserId;
+    if (currentUserId == null) {
+      return Stream<bool>.value(false);
+    }
 
-      String? currentUserId = _auth.currentUser?.uid;
-      if (currentUserId == null) return false;
-
-      bool isOtherUserTyping = false;
-      data.forEach((key, value) {
-        if (key != currentUserId && value == true) {
-          isOtherUserTyping = true;
-        }
-      });
-
-      return isOtherUserTyping;
+    return _client
+        .from('task_typing_status')
+        .stream(primaryKey: ['task_id', 'user_id'])
+        .eq('task_id', taskId)
+        .map((rows) {
+      return rows.any((row) =>
+          row['user_id'] != currentUserId && (row['is_typing'] as bool? ?? false));
     });
   }
 
   @override
   Future<Either<String, Chat>> getChatByTaskId(String taskId) async {
     try {
-      String? currentUserId = _auth.currentUser?.uid;
+      final currentUserId = _currentUserId;
       if (currentUserId == null) {
         return Left('User not authenticated');
       }
 
-      firestore.DocumentSnapshot taskDoc = await _firestore.collection('tasks').doc(taskId).get();
-      if (!taskDoc.exists) {
+      final row = await _client.from('tasks').select().eq('id', taskId).maybeSingle();
+      if (row == null) {
         return Left('Task not found');
       }
 
-      Map<String, dynamic> taskData = taskDoc.data() as Map<String, dynamic>;
-      
-      // Check if user is a participant (client or provider)
-      String? clientId = taskData['clientId'];
-      String? providerId = taskData['providerId'];
-      
-      if (clientId != currentUserId && providerId != currentUserId) {
+      final participants = _parseParticipants(row['participants']);
+      if (!participants.contains(currentUserId)) {
         return Left('Access denied: You are not a participant in this task');
       }
-      
-      // Check if task is active
-      String? status = taskData['status'];
-      if (status != 'active' && status != 'in_progress') {
+
+      final status = row['status'] as String?;
+      if (status != null && status != 'active' && status != 'in_progress') {
         return Left('Chat is only available for active tasks');
       }
-      
-      firestore.QuerySnapshot messagesSnapshot = await _firestore
-          .collection('tasks')
-          .doc(taskId)
-          .collection('messages')
-          .orderBy('timestamp', descending: true)
-          .limit(1)
-          .get();
 
-      Message? lastMessage;
-      if (messagesSnapshot.docs.isNotEmpty) {
-        firestore.DocumentSnapshot lastMessageDoc = messagesSnapshot.docs.first;
-        Map<String, dynamic> messageData = lastMessageDoc.data() as Map<String, dynamic>;
-        lastMessage = Message(
-          id: lastMessageDoc.id,
-          taskId: taskId,
-          senderId: messageData['senderId'],
-          senderName: messageData['senderName'],
-          senderAvatar: messageData['senderAvatar'],
-          content: messageData['content'],
-          type: MessageType.values.firstWhere(
-            (type) => type.toString() == messageData['type'],
-            orElse: () => MessageType.text,
-          ),
-          timestamp: (messageData['timestamp'] as firestore.Timestamp).toDate(),
-          status: MessageStatus.values.firstWhere(
-            (status) => status.toString() == messageData['status'],
-            orElse: () => MessageStatus.sent,
-          ),
-          isFromCurrentUser: messageData['senderId'] == _auth.currentUser?.uid,
-          imageUrl: messageData['imageUrl'],
-        );
-      }
-
-      Chat chat = Chat(
-        id: taskId,
-        taskId: taskId,
-        taskName: taskData['title'] ?? 'Unknown Task',
-        taskDescription: taskData['description'] ?? '',
-        participants: List<String>.from(taskData['participants'] ?? []),
-        requesterId: taskData['requesterId'] ?? '',
-        taskerId: taskData['taskerId'] ?? '',
-        createdAt: (taskData['createdAt'] as firestore.Timestamp?)?.toDate() ?? DateTime.now(),
-        lastMessageAt: lastMessage?.timestamp,
-        lastMessage: lastMessage,
-        status: ChatStatus.active,
-      );
-
-      return Right(chat);
+      return Right(_mapTaskRowToChat(row, currentUserId));
     } catch (e) {
       return Left('Failed to load chats: $e');
     }
@@ -283,19 +204,19 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   Future<Either<String, List<Chat>>> getUserChats({int limit = 50}) async {
     try {
-      final currentUserId = _auth.currentUser?.uid;
+      final currentUserId = _currentUserId;
       if (currentUserId == null) {
         return Left('User not authenticated');
       }
 
-      final snapshot = await _firestore
-          .collection('tasks')
-          .where('participants', arrayContains: currentUserId)
-          .orderBy('lastMessageAt', descending: true)
-          .limit(limit)
-          .get();
+      final rows = await _client
+          .from('tasks')
+          .select()
+          .contains('participants', [currentUserId])
+          .order('last_message_at', ascending: false)
+          .limit(limit);
 
-      final chats = snapshot.docs.map((doc) => _mapTaskDocToChat(doc)).toList();
+      final chats = rows.map<Chat>((row) => _mapTaskRowToChat(row, currentUserId)).toList();
       return Right(chats);
     } catch (e) {
       return Left('Failed to load chats: $e');
@@ -304,36 +225,48 @@ class ChatRepositoryImpl implements ChatRepository {
 
   @override
   Stream<List<Chat>> getUserChatsStream({int limit = 50}) {
-    final currentUserId = _auth.currentUser?.uid;
+    final currentUserId = _currentUserId;
     if (currentUserId == null) {
-      return const Stream.empty();
+      return Stream<List<Chat>>.empty();
     }
 
-    return _firestore
-        .collection('tasks')
-        .where('participants', arrayContains: currentUserId)
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => _mapTaskDocToChat(doc)).toList());
+    return _client
+        .from('tasks')
+        .stream(primaryKey: ['id'])
+        .order('last_message_at', ascending: false)
+        .map((rows) {
+      final filtered = rows.where((row) {
+        final participants = _parseParticipants(row['participants']);
+        return participants.contains(currentUserId);
+      }).take(limit);
+
+      return filtered.map((row) => _mapTaskRowToChat(row, currentUserId)).toList();
+    });
   }
 
-  Chat _mapTaskDocToChat(firestore.DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+  Chat _mapTaskRowToChat(Map<String, dynamic> row, String? currentUserId) {
     return Chat(
-      id: doc.id,
-      taskId: doc.id,
-      taskName: data['title'] ?? 'Unknown Task',
-      taskDescription: data['description'] ?? '',
-      participants: List<String>.from(data['participants'] ?? const []),
-      requesterId: data['requesterId'] ?? '',
-      taskerId: data['taskerId'] ?? '',
-      createdAt: (data['createdAt'] as firestore.Timestamp?)?.toDate() ?? DateTime.now(),
-      lastMessageAt: (data['lastMessageAt'] as firestore.Timestamp?)?.toDate(),
-      lastMessage: _mapEmbeddedMessage(doc.id, data['lastMessage']),
-      status: _parseStatus(data['status']),
-      isTyping: data['typing'] == true,
-      typingUserId: data['typingUserId'],
+      id: row['id']?.toString() ?? '',
+      taskId: row['id']?.toString() ?? '',
+      taskName: row['title']?.toString() ?? 'Unknown Task',
+      taskDescription: row['description']?.toString() ?? '',
+      participants: _parseParticipants(row['participants']),
+      requesterId: row['requester_id']?.toString() ?? '',
+      taskerId: row['tasker_id']?.toString() ?? '',
+      createdAt: _parseDateTime(row['created_at']) ?? DateTime.now(),
+      lastMessageAt: _parseDateTime(row['last_message_at']),
+      lastMessage: _mapEmbeddedMessage(row['id']?.toString() ?? '', row['last_message'], currentUserId),
+      status: _parseStatus(row['status']?.toString()),
+      isTyping: row['is_typing'] as bool? ?? false,
+      typingUserId: row['typing_user_id']?.toString(),
     );
+  }
+
+  List<String> _parseParticipants(dynamic raw) {
+    if (raw is List) {
+      return raw.map((participant) => participant.toString()).toList();
+    }
+    return const <String>[];
   }
 
   ChatStatus _parseStatus(String? raw) {
@@ -347,28 +280,36 @@ class ChatRepositoryImpl implements ChatRepository {
     }
   }
 
-  Message? _mapEmbeddedMessage(String taskId, dynamic raw) {
+  Message? _mapEmbeddedMessage(String taskId, dynamic raw, String? currentUserId) {
     if (raw is! Map<String, dynamic>) return null;
-    final timestamp = raw['timestamp'];
-    DateTime? ts;
-    if (timestamp is firestore.Timestamp) {
-      ts = timestamp.toDate();
-    } else if (timestamp is DateTime) {
-      ts = timestamp;
-    }
-
     return Message(
-      id: raw['id'] ?? '',
+      id: raw['id']?.toString() ?? '',
       taskId: taskId,
-      senderId: raw['senderId'] ?? '',
-      senderName: raw['senderName'] ?? '',
-      senderAvatar: raw['senderAvatar'],
-      content: raw['content'] ?? '',
-      type: _parseMessageType(raw['type']),
-      timestamp: ts ?? DateTime.now(),
-      status: _parseMessageStatus(raw['status']),
-      isFromCurrentUser: raw['senderId'] == _auth.currentUser?.uid,
-      imageUrl: raw['imageUrl'],
+      senderId: raw['sender_id']?.toString() ?? '',
+      senderName: raw['sender_name']?.toString() ?? '',
+      senderAvatar: raw['sender_avatar']?.toString(),
+      content: raw['content']?.toString() ?? '',
+      type: _parseMessageType(raw['type']?.toString()),
+      timestamp: _parseDateTime(raw['created_at']) ?? DateTime.now(),
+      status: _parseMessageStatus(raw['status']?.toString()),
+      isFromCurrentUser: raw['sender_id']?.toString() == currentUserId,
+      imageUrl: raw['image_url']?.toString(),
+    );
+  }
+
+  Message _mapRowToMessage(Map<String, dynamic> row, String? currentUserId) {
+    return Message(
+      id: row['id']?.toString() ?? '',
+      taskId: row['task_id']?.toString() ?? '',
+      senderId: row['sender_id']?.toString() ?? '',
+      senderName: row['sender_name']?.toString() ?? 'Unknown',
+      senderAvatar: row['sender_avatar']?.toString(),
+      content: row['content']?.toString() ?? '',
+      type: _parseMessageType(row['type']?.toString()),
+      timestamp: _parseDateTime(row['created_at']) ?? DateTime.now(),
+      status: _parseMessageStatus(row['status']?.toString()),
+      isFromCurrentUser: row['sender_id']?.toString() == currentUserId,
+      imageUrl: row['image_url']?.toString(),
     );
   }
 
@@ -397,19 +338,36 @@ class ChatRepositoryImpl implements ChatRepository {
         return MessageStatus.sent;
     }
   }
+
+  DateTime? _parseDateTime(dynamic raw) {
+    if (raw is String) {
+      return DateTime.tryParse(raw)?.toLocal();
+    }
+    if (raw is DateTime) {
+      return raw;
+    }
+    return null;
+  }
+
   @override
   Future<Either<String, String>> uploadImage(String taskId, String filePath) async {
     try {
-      File file = File(filePath);
-      String fileName = '${taskId}_${DateTime.now().millisecondsSinceEpoch}';
+      final file = File(filePath);
+      if (!file.existsSync()) {
+        return Left('File not found');
+      }
 
-      Reference ref = _storage.ref().child('chat_images/$fileName');
-      UploadTask uploadTask = ref.putFile(file);
+      final bytes = await file.readAsBytes();
+      final objectPath = 'chat-images/$taskId/${DateTime.now().millisecondsSinceEpoch}_${file.uri.pathSegments.last}';
 
-      TaskSnapshot snapshot = await uploadTask;
-      String downloadUrl = await snapshot.ref.getDownloadURL();
+      await _client.storage.from(_storageBucket).uploadBinary(
+            objectPath,
+            bytes,
+            fileOptions: const FileOptions(upsert: false),
+          );
 
-      return Right(downloadUrl);
+      final publicUrl = _client.storage.from(_storageBucket).getPublicUrl(objectPath);
+      return Right(publicUrl);
     } catch (e) {
       return Left('Failed to upload image: $e');
     }
