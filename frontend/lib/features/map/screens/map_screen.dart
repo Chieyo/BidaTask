@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -264,31 +265,318 @@ List<Task> _allTasks = [];
   }
 
   void _showTaskDetails(Task task) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(task.title),
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(task.description ?? 'No description'),
-            const SizedBox(height: 8),
-            Text('Category: ${task.category}'),
-            Text('Urgent: ${task.isUrgent ? "Yes" : "No"}'),
-            Text('Price: ${task.formattedPrice}'),
-            if (task.dueDate != null)
-              Text('Due Date: ${task.dueDate!.toString().split(' ')[0]}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5, // Start at 50% of screen height
+        maxChildSize: 0.8, // Max 80% of screen height
+        minChildSize: 0.3, // Min 30% of screen height
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
           ),
-        ],
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                  // Handle bar
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  
+                  // Task title (header)
+                  Text(
+                    task.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 8),
+                  
+                  // Category and urgency with pills
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3F4F6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          task.category,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: task.isUrgent 
+                              ? const Color(0xFFFEE2E2)
+                              : const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          task.isUrgent ? 'Urgent' : 'Normal',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: task.isUrgent 
+                                ? const Color(0xFFDC2626)
+                                : const Color(0xFF10B981),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Distance from user with icon
+                  if (_currentPosition != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.location_on,
+                            size: 14,
+                            color: Color(0xFF3B82F6),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _calculateDistance(task),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF3B82F6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Task details section
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Task Details:',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          task.description ?? 'No description provided',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Reward section with design
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF10B981), width: 1),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.attach_money,
+                          size: 16,
+                          color: Color(0xFF10B981),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Reward: ${task.formattedPrice}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF10B981),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Divider
+                  Container(
+                    height: 1,
+                    color: const Color(0xFFE5E7EB),
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Poster information with design
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: const Color(0xFF3B82F6),
+                        child: Text(
+                          task.postedBy.isNotEmpty ? task.postedBy[0].toUpperCase() : 'A',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              task.postedBy.isNotEmpty ? task.postedBy : 'Anonymous User',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.star,
+                                    color: Color(0xFFF59E0B),
+                                    size: 12,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Trust Tier ${_getTrustTier(task.postedBy)}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFFF59E0B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(), // Use remaining space
+                ],
+            ),
+          ),
+        ),
       ),
     );
+  }
+  
+  String _calculateDistance(Task task) {
+    // Parse task location
+    latlng.LatLng taskLocation;
+    if (task.location != null && task.location.toString().startsWith('POINT(')) {
+      try {
+        final pointStr = task.location.toString().replaceAll('POINT(', '').replaceAll(')', '');
+        final coords = pointStr.split(' ');
+        if (coords.length == 2) {
+          final longitude = double.parse(coords[0]);
+          final latitude = double.parse(coords[1]);
+          taskLocation = latlng.LatLng(latitude, longitude);
+        } else {
+          return 'Distance unavailable';
+        }
+      } catch (e) {
+        return 'Distance unavailable';
+      }
+    } else {
+      return 'Distance unavailable';
+    }
+    
+    // Calculate distance using Haversine formula
+    if (_currentPosition == null) return 'Distance unavailable';
+    
+    const double earthRadius = 6371000; // Earth's radius in meters
+    
+    final double lat1Rad = _currentPosition!.latitude * (3.14159265359 / 180);
+    final double lat2Rad = taskLocation.latitude * (3.14159265359 / 180);
+    final double deltaLatRad = (taskLocation.latitude - _currentPosition!.latitude) * (3.14159265359 / 180);
+    final double deltaLonRad = (taskLocation.longitude - _currentPosition!.longitude) * (3.14159265359 / 180);
+    
+    final double a = math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
+        math.cos(lat1Rad) * math.cos(lat2Rad) *
+        math.sin(deltaLonRad / 2) * math.sin(deltaLonRad / 2);
+    final double c = 2 * math.asin(math.sqrt(a));
+    
+    final double distance = earthRadius * c;
+    
+    if (distance < 1000) {
+      return '${distance.round()} meters away';
+    } else {
+      return '${(distance / 1000).toStringAsFixed(1)} km away';
+    }
+  }
+  
+  int _getTrustTier(String postedBy) {
+    // TODO: Implement actual trust tier logic based on user data
+    // For now, return a random tier between 1-5 for demonstration
+    return (postedBy.hashCode % 5) + 1;
   }
 
   void _updateFilters() {
