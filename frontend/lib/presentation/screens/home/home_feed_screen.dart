@@ -9,6 +9,7 @@ import '../../widgets/task/task_near_you_card.dart';
 import '../tasks/all_tasks_screen.dart';
 import '../../../services/task_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../features/chat/screens/chat_list_screen.dart';
 
 class HomeFeedScreen extends StatefulWidget {
   const HomeFeedScreen({super.key});
@@ -145,7 +146,14 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
           actions: [
             IconButton(
               icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ChatListScreen(),
+                  ),
+                );
+              },
             ),
             IconButton(
               icon: const Icon(Icons.notifications_none, color: Colors.white),
