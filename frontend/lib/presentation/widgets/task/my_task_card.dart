@@ -20,6 +20,8 @@ class MyTaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('Building MyTaskCard for: ${task.title}, status: ${task.taskStatus}');
+    
     final now = DateTime.now();
     final isDueToday = task.dueDate != null && 
         task.dueDate!.year == now.year &&
@@ -163,7 +165,7 @@ class MyTaskCard extends StatelessWidget {
                     task.isCompleted 
                         ? 'Completed'
                         : task.isPendingCompletion
-                            ? 'Pending Completion'
+                            ? 'Waiting for Confirmation'
                             : 'In Progress',
                     style: GoogleFonts.poppins(
                       fontSize: 10,

@@ -153,7 +153,7 @@ router.get('/mine', verifyToken, async (req, res) => {
       .select('*')
       .eq('assignee_id', req.user.userId)
       .not('assignee_id', 'is', null)
-      .in('task_status', ['todo']); // Only show todo tasks (not pending or completed)
+      .in('task_status', ['todo', 'pending_completion']); // Show active tasks and pending confirmation tasks
 
     if (acceptedError) {
       throw acceptedError;

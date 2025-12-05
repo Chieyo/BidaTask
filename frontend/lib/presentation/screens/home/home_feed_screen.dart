@@ -510,6 +510,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
       itemCount: tasks.length,
       itemBuilder: (context, index) {
         final task = tasks[index];
+        print('Building ACTIVE task card for: ${task.title}, status: ${task.taskStatus}, isTaken: ${task.isTaken}, isMyTask: ${task.isMyTask}');
+        print('ACTIVE task button logic: onMarkDone=${task.isTaken && !task.isMyTask && task.taskStatus == 'todo'}');
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: MyTaskCard(
@@ -517,7 +519,10 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             onTap: () {
               // Handle task tap
             },
-            onMarkDone: (task.isTaken && !task.isMyTask) ? () => _markTaskDone(task) : null,
+            onMarkDone: (task.isTaken && !task.isMyTask && task.taskStatus == 'todo') ? () {
+              print('Mark as Done clicked for task: ${task.title}, status: ${task.taskStatus}');
+              _markTaskDone(task);
+            } : null,
             // No onDelete or confirm completion for active tasks (tasks you've taken)
           ),
         );
@@ -612,6 +617,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
       itemCount: tasks.length,
       itemBuilder: (context, index) {
         final task = tasks[index];
+        print('Building POSTED task card for: ${task.title}, status: ${task.taskStatus}, isTaken: ${task.isTaken}, isMyTask: ${task.isMyTask}');
+        print('POSTED task button logic: onMarkDone=${task.isTaken && !task.isMyTask && task.taskStatus == 'todo'}');
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: MyTaskCard(
@@ -620,8 +627,15 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
               // Handle task tap
             },
             // Only pass the relevant callback based on task state and user role
-            onMarkDone: (task.isTaken && !task.isMyTask && task.taskStatus == 'todo') ? () => _markTaskDone(task) : null,
-            onConfirmCompletion: (task.isMyTask && task.isPendingCompletion) ? () => _confirmTaskCompletion(task) : null,
+            onMarkDone: (task.isTaken && !task.isMyTask && task.taskStatus == 'todo') ? () {
+              print('Mark as Done clicked for task: ${task.title}, status: ${task.taskStatus}');
+              print('DEBUG: Task state - isTaken: ${task.isTaken}, isMyTask: ${task.isMyTask}, taskStatus: ${task.taskStatus}');
+              _markTaskDone(task);
+            } : null,
+            onConfirmCompletion: (task.isMyTask && task.isPendingCompletion) ? () {
+              print('Confirm Completion clicked for task: ${task.title}, status: ${task.taskStatus}');
+              _confirmTaskCompletion(task);
+            } : null,
             onDelete: (task.isMyTask && !task.isTaken && task.taskStatus == 'todo') ? () => _showDeleteConfirmation(task) : null,
           ),
         );
@@ -838,6 +852,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
 
   Future<void> _markTaskDone(Task task) async {
     try {
+      print('Starting _markTaskDone for task: ${task.title}, current status: ${task.taskStatus}');
+      
       // Show loading dialog
       showDialog(
         context: context,
@@ -854,6 +870,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
       );
 
       final result = await _taskService.markTaskAsDone(task.id);
+      print('Mark as Done result: $result');
 
       // Close loading dialog
       Navigator.pop(context);
@@ -873,18 +890,34 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
         ),
       );
 
-      // If successful, refresh the tasks
-      if (result['success']) {
-        // Refresh all task data
-        _loadHomeFeedData();
-        // Also trigger a global refresh if possible
-        setState(() {});
+      // Refresh the feed to update the task status
+      if (result['success'] == true) {
+        print('Refreshing feed after marking task as done...');
+        await _loadHomeFeedData(); // Wait for refresh to complete
+        
+        // Find the updated task in both lists and print its new status
+        Task? updatedTask;
+        try {
+          updatedTask = _activeTasks.firstWhere((t) => t.id == task.id);
+        } catch (e) {
+          try {
+            updatedTask = _postedTasks.firstWhere((t) => t.id == task.id);
+          } catch (e) {
+            updatedTask = task;
+          }
+        }
+        
+        print('Task status after refresh: ${updatedTask.taskStatus}');
+        print('Button should show: ${updatedTask.isTaken && !updatedTask.isMyTask && updatedTask.taskStatus == 'todo'}');
+        print('Task list: ${updatedTask == _activeTasks.firstWhere((t) => t.id == task.id, orElse: () => task) ? "active" : "posted"}');
+        
+        setState(() {}); // Force UI rebuild
       }
     } catch (e) {
-      // Close loading dialog if open
-      Navigator.pop(context, true);
+      // Close loading dialog if it's open
+      Navigator.pop(context);
       
-      // Show error dialog
+      print('Error in _markTaskDone: $e');
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
