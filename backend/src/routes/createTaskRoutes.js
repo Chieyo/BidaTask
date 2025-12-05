@@ -42,7 +42,7 @@ const formatTaskResponse = (task, requesterLookup = {}) => {
     category: task.task_category,
     priority: task.task_priority,
     dueDate: task.due_date,
-    locationName: task.location_name,
+    location: task.location,
     status: task.task_status,
     createdAt: task.created_at,
     requesterId: task.requester_id,
@@ -156,7 +156,7 @@ router.post('/', verifyToken, async (req, res) => {
         task_category: req.body.category,
         task_priority: req.body.priority,
         due_date: req.body.dueDate ? new Date(req.body.dueDate).toISOString() : null,
-        location_name: req.body.locationName || null,
+        location: req.body.location || null,
         task_status: 'todo'
     };
 
