@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS public.tasks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   requester_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  assignee_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   task_title TEXT NOT NULL,
   task_description TEXT,
   reward DECIMAL(10, 2) NOT NULL,

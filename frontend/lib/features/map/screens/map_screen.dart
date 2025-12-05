@@ -222,10 +222,10 @@ List<Task> _allTasks = [];
             onTap: () => _showTaskDetails(task),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: task.isTaken ? Colors.grey[400] : Colors.white,
                 borderRadius: BorderRadius.circular(25),
                 border: Border.all(
-                  color: _getUrgencyColor(task.isUrgent ? 'urgent' : 'normal'),
+                  color: task.isTaken ? Colors.grey : _getUrgencyColor(task.isUrgent ? 'urgent' : 'normal'),
                   width: 3,
                 ),
                 boxShadow: [
@@ -238,7 +238,7 @@ List<Task> _allTasks = [];
               ),
               child: Icon(
                 _getCategoryIcon(task.category),
-                color: _getUrgencyColor(task.isUrgent ? 'urgent' : 'normal'),
+                color: task.isTaken ? Colors.grey[600] : _getUrgencyColor(task.isUrgent ? 'urgent' : 'normal'),
                 size: 30.0,
               ),
             ),
@@ -270,9 +270,9 @@ List<Task> _allTasks = [];
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.5, // Start at 50% of screen height
-        maxChildSize: 0.8, // Max 80% of screen height
-        minChildSize: 0.3, // Min 30% of screen height
+        initialChildSize: 0.6, // Start at 60% of screen height
+        maxChildSize: 0.9, // Max 90% of screen height
+        minChildSize: 0.4, // Min 40% of screen height
         builder: (context, scrollController) => Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -283,9 +283,10 @@ List<Task> _allTasks = [];
           ),
           child: Padding(
             padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   // Handle bar
                   Center(
                     child: Container(
@@ -519,8 +520,85 @@ List<Task> _allTasks = [];
                       ),
                     ],
                   ),
-                  const Spacer(), // Use remaining space
+                  
+                  // Action buttons
+                  const SizedBox(height: 20),
+                  if (task.isTaken)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.grey[600],
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Task Already Taken',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              side: const BorderSide(color: Color(0xFF6B7280)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => _acceptTask(task),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF3B82F6),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Take Task',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
+              ),
             ),
           ),
         ),
@@ -577,6 +655,73 @@ List<Task> _allTasks = [];
     // TODO: Implement actual trust tier logic based on user data
     // For now, return a random tier between 1-5 for demonstration
     return (postedBy.hashCode % 5) + 1;
+  }
+
+  Future<void> _acceptTask(Task task) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Accepting task...'),
+            ],
+          ),
+        ),
+      );
+
+      final taskService = TaskService();
+      final result = await taskService.acceptTask(task.id);
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Close task details bottom sheet
+      Navigator.pop(context);
+
+      // Show result dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(result['success'] ? 'Success!' : 'Error'),
+          content: Text(result['message']),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+      // If successful, close bottom sheet and refresh the tasks
+      if (result['success']) {
+        Navigator.pop(context); // Close the bottom sheet
+        _fetchAndDisplayTasks();
+      }
+    } catch (e) {
+      // Close any open dialogs
+      Navigator.pop(context, true);
+      Navigator.pop(context, true);
+      
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('Failed to accept task: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _updateFilters() {

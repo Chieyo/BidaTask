@@ -48,6 +48,7 @@ const formatTaskResponse = (task, requesterLookup = {}) => {
     requesterId: task.requester_id,
     requesterName: requesterProfile.full_name || 'Task Owner',
     requesterAvatar: requesterProfile.avatar_url || null,
+    assigneeId: task.assignee_id, // Add assignee_id to response
   };
 };
 
@@ -58,18 +59,45 @@ const buildRequesterLookup = async (tasks = []) => {
     return {};
   }
 
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, full_name, avatar_url')
-    .in('id', requesterIds);
-
+  const { data: profiles, error } = await supabase.auth.admin.listUsers();
+  
   if (error) {
-    console.error('Error fetching requester profiles:', error.message);
+    console.error('Error fetching profiles:', error);
     return {};
   }
 
-  return data.reduce((acc, profile) => {
-    acc[profile.id] = profile;
+  const filteredUsers = (profiles.users || []).filter(user => requesterIds.includes(user.id));
+  
+  return filteredUsers.reduce((acc, user) => {
+    acc[user.id] = {
+      full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Unknown User',
+      avatar_url: user.user_metadata?.avatar_url || null,
+    };
+    return acc;
+  }, {});
+};
+
+const buildAssigneeLookup = async (tasks = []) => {
+  const assigneeIds = [...new Set(tasks.map((task) => task.assignee_id).filter(Boolean))];
+
+  if (!assigneeIds.length) {
+    return {};
+  }
+
+  const { data: profiles, error } = await supabase.auth.admin.listUsers();
+  
+  if (error) {
+    console.error('Error fetching assignee profiles:', error);
+    return {};
+  }
+
+  const filteredUsers = (profiles.users || []).filter(user => assigneeIds.includes(user.id));
+  
+  return filteredUsers.reduce((acc, user) => {
+    acc[user.id] = {
+      full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Unknown User',
+      avatar_url: user.user_metadata?.avatar_url || null,
+    };
     return acc;
   }, {});
 };
@@ -96,7 +124,11 @@ router.get('/', async (req, res) => {
     }
 
     const requesterLookup = await buildRequesterLookup(data || []);
-    const formatted = (data || []).map((task) => formatTaskResponse(task, requesterLookup));
+    const formatted = (data || []).map((task) => {
+      const formattedTask = formatTaskResponse(task, requesterLookup);
+      console.log(`Task ${task.id}: assignee_id = ${task.assignee_id}, assigneeId = ${formattedTask.assigneeId}`);
+      return formattedTask;
+    });
 
     res.status(200).json({
       status: 'success',
@@ -114,20 +146,25 @@ router.get('/', async (req, res) => {
 // GET /api/tasks/mine
 router.get('/mine', verifyToken, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    // Get tasks accepted by the user (active tasks they need to work on)
+    const { data: acceptedTasks, error: acceptedError } = await supabase
       .from('tasks')
       .select('*')
-      .eq('requester_id', req.user.userId)
-      .order('created_at', { ascending: false });
+      .eq('assignee_id', req.user.userId)
+      .not('assignee_id', 'is', null);
 
-    if (error) {
-      throw error;
+    if (acceptedError) {
+      throw acceptedError;
     }
 
-    const requesterLookup = await buildRequesterLookup(data || []);
-    const formatted = (data || []).map((task) => ({
+    // For now, return only accepted tasks as "active tasks"
+    // Posted tasks should be fetched separately for the "Posted Tasks" tab
+    const allTasks = acceptedTasks || [];
+    
+    const requesterLookup = await buildRequesterLookup(allTasks);
+    const formatted = allTasks.map((task) => ({
       ...formatTaskResponse(task, requesterLookup),
-      isMine: true,
+      isMine: task.requester_id === req.user.userId,
     }));
 
     res.status(200).json({
@@ -136,6 +173,47 @@ router.get('/mine', verifyToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching user tasks:', error.message);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error',
+    });
+  }
+});
+
+// GET /api/tasks/posted
+router.get('/posted', verifyToken, async (req, res) => {
+  try {
+    // Get tasks posted by the user
+    const { data: postedTasks, error: postedError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('requester_id', req.user.userId);
+
+    if (postedError) {
+      throw postedError;
+    }
+    
+    const [requesterLookup, assigneeLookup] = await Promise.all([
+      buildRequesterLookup(postedTasks || []),
+      buildAssigneeLookup(postedTasks || [])
+    ]);
+    
+    const formatted = (postedTasks || []).map((task) => {
+      const assigneeProfile = assigneeLookup[task.assignee_id];
+      return {
+        ...formatTaskResponse(task, requesterLookup),
+        isMine: true, // All tasks here are posted by the user
+        assigneeName: assigneeProfile?.full_name || null,
+        assigneeAvatar: assigneeProfile?.avatar_url || null,
+      };
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: formatted,
+    });
+  } catch (error) {
+    console.error('Error fetching posted tasks:', error);
     res.status(500).json({
       status: 'error',
       message: error.message || 'Internal server error',
@@ -188,6 +266,84 @@ router.post('/', verifyToken, async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: error.message || 'Internal server error'
+    });
+  }
+});
+
+// POST /api/tasks/:id/accept
+router.post('/:id/accept', verifyToken, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    const userId = req.user.userId;
+
+    console.log(`User ${userId} attempting to accept task ${taskId}`);
+
+    // Check if task exists and is available
+    const { data: task, error: taskError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .maybeSingle();
+
+    if (taskError || !task) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Task not found',
+      });
+    }
+
+    // Check if task is already accepted
+    if (task.task_status !== 'todo') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Task is no longer available',
+      });
+    }
+
+    // Check if user is trying to accept their own task
+    if (task.requester_id === userId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'You cannot accept your own task',
+      });
+    }
+
+    // Update task - assign to user
+    const { data: updatedTask, error: updateError } = await supabase
+      .from('tasks')
+      .update({
+        assignee_id: userId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', taskId)
+      .is('assignee_id', null) // Only update if not already taken
+      .select();
+
+    if (updateError) {
+      console.error('Error updating task:', updateError);
+      throw updateError;
+    }
+
+    if (!updatedTask || updatedTask.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Task is no longer available',
+      });
+    }
+
+    console.log(`Task ${taskId} successfully accepted by user ${userId}`);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Task accepted successfully',
+      data: updatedTask
+    });
+
+  } catch (error) {
+    console.error('Error accepting task:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error',
     });
   }
 });

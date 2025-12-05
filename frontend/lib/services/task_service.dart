@@ -129,7 +129,7 @@ class TaskService {
       if (response.statusCode == 200 && data['status'] == 'success') {
         final List<dynamic> tasks = data['data'] ?? [];
         return tasks
-            .map((taskJson) => _mapTaskFromJson(taskJson, isMineOverride: true))
+            .map((taskJson) => _mapTaskFromJson(taskJson, isMineOverride: false))
             .whereType<Task>()
             .toList();
       }
@@ -137,6 +137,34 @@ class TaskService {
       throw Exception(data['message'] ?? 'Failed to fetch your tasks');
     } catch (e) {
       throw Exception('Unable to load your tasks: $e');
+    }
+  }
+
+  Future<List<Task>> fetchPostedTasks() async {
+    final token = await _getToken();
+    if (token == null) {
+      throw Exception('Authentication required');
+    }
+
+    try {
+      final uri = Uri.parse('$baseUrl/tasks/posted');
+      final response = await http.get(uri, headers: {
+        'Authorization': 'Bearer $token',
+      }).timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == 'success') {
+        final List<dynamic> tasks = data['data'] ?? [];
+        return tasks
+            .map((taskJson) => _mapTaskFromJson(taskJson, isMineOverride: true))
+            .whereType<Task>()
+            .toList();
+      }
+
+      throw Exception(data['message'] ?? 'Failed to fetch your posted tasks');
+    } catch (e) {
+      throw Exception('Unable to load your posted tasks: $e');
     }
   }
 
@@ -163,6 +191,9 @@ class TaskService {
       category: category,
       isMyTask: isMineOverride || (json['isMine'] == true),
       isUrgent: priority == 'high',
+      isTaken: json['assignee_id'] != null || json['assigneeId'] != null,
+      assigneeName: json['assigneeName'],
+      assigneeAvatar: json['assigneeAvatar'],
     );
   }
 
@@ -171,5 +202,46 @@ class TaskService {
     if (value is double) return value;
     if (value is int) return value.toDouble();
     return double.tryParse(value.toString()) ?? 0;
+  }
+
+  // Accept/Take a task
+  Future<Map<String, dynamic>> acceptTask(String taskId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        return {
+          'success': false,
+          'message': 'Authentication required',
+        };
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/tasks/$taskId/accept'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Task accepted successfully',
+          'data': data['data'],
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to accept task',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error accepting task: $e',
+      };
+    }
   }
 }

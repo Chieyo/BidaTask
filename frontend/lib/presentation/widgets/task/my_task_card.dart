@@ -86,14 +86,16 @@ class MyTaskCard extends StatelessWidget {
               ],
             ),
             
-            // Author
+            // Author or Assignee
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 8),
               child: Text(
-                'by ${task.postedBy}',
+                task.isTaken && task.assigneeName != null 
+                    ? 'Taken by ${task.assigneeName}'
+                    : 'by ${task.postedBy}',
                 style: GoogleFonts.poppins(
                   fontSize: 11,
-                  color: Colors.grey[600],
+                  color: task.isTaken ? Colors.green[600] : Colors.grey[600],
                   fontStyle: FontStyle.italic,
                 ),
                 maxLines: 1,

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../domain/models/task_model.dart';
 import '../../widgets/background/animated_background.dart';
 import '../../widgets/task/task_near_you_card.dart';
+import '../../../services/task_service.dart';
 
 class AllTasksScreen extends StatefulWidget {
   final List<Task> tasks;
@@ -127,10 +128,7 @@ class _AllTasksScreenState extends State<AllTasksScreen> {
                             // Handle task tap
                             debugPrint('Tapped on task: ${task.title}');
                           },
-                          onTakeTask: () {
-                            // Handle take task
-                            debugPrint('Take task: ${task.title}');
-                          },
+                          onTakeTask: () => _acceptTask(task),
                         );
                       },
                     ),
@@ -139,5 +137,67 @@ class _AllTasksScreenState extends State<AllTasksScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _acceptTask(Task task) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Accepting task...'),
+            ],
+          ),
+        ),
+      );
+
+      final taskService = TaskService();
+      final result = await taskService.acceptTask(task.id);
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show result dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(result['success'] ? 'Success!' : 'Error'),
+          content: Text(result['message']),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+      // If successful, pop back to refresh
+      if (result['success']) {
+        Navigator.pop(context); // Go back to home screen to refresh
+      }
+    } catch (e) {
+      // Close loading dialog if open
+      Navigator.pop(context, true);
+      
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('Failed to accept task: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }

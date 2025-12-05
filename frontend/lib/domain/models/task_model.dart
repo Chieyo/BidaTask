@@ -13,6 +13,9 @@ class Task {
   final String category;
   final bool isMyTask;
   final bool isUrgent;
+  final bool isTaken; // New field to track if task is taken
+  final String? assigneeName; // Name of the person who took the task
+  final String? assigneeAvatar; // Avatar of the person who took the task
 
   Task({
     required this.id,
@@ -27,6 +30,9 @@ class Task {
     required this.category,
     this.isMyTask = false,
     this.isUrgent = false,
+    this.isTaken = false,
+    this.assigneeName,
+    this.assigneeAvatar,
   });
 
   // Helper method to calculate time ago

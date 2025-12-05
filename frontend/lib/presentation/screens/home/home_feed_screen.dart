@@ -66,9 +66,24 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
 
   Future<void> _loadHomeFeedData() async {
     await Future.wait([
+      _loadActiveTasks(),
       _loadPostedTasks(),
       _loadNearbyTasks(),
     ]);
+  }
+
+  Future<void> _loadActiveTasks() async {
+    try {
+      final tasks = await _taskService.fetchMyTasks();
+      setState(() {
+        _activeTasks = tasks;
+      });
+    } catch (e) {
+      print('Error loading active tasks: $e');
+      setState(() {
+        _activeTasks = [];
+      });
+    }
   }
 
   Future<void> _loadPostedTasks() async {
@@ -81,7 +96,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
     String? error;
 
     try {
-      fetched = await _taskService.fetchMyTasks();
+      fetched = await _taskService.fetchPostedTasks();
     } catch (e) {
       error = e.toString();
     }
@@ -233,7 +248,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
       'Personal',
     ];
     
-    final filteredTasks = _getFilteredTasks();
+    final filteredTasks = _filteredTasks;
     
     return Container(
       padding: const EdgeInsets.only(top: 20, left: 16, right: 16, bottom: 40),
@@ -393,9 +408,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
                   onTap: () {
                     debugPrint('Tapped on task: ${task.title}');
                   },
-                  onTakeTask: () {
-                    debugPrint('Take task: ${task.title}');
-                  },
+                  onTakeTask: () => _acceptTask(task),
                 );
               },
             ),
@@ -405,11 +418,11 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
     );
   }
   
-  List<Task> _getFilteredTasks() {
-    if (_activeCategory == 'All') return _nearbyTasks;
-
+  List<Task> get _filteredTasks {
     return _nearbyTasks.where((task) {
-      return task.category.toLowerCase() == _activeCategory.toLowerCase();
+      // Filter out tasks that have been taken
+      return (_activeCategory == 'All' || 
+             task.category.toLowerCase() == _activeCategory.toLowerCase()) && !task.isTaken;
     }).toList();
   }
 
@@ -629,5 +642,66 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
         ),
       ),
     );
+  }
+
+  Future<void> _acceptTask(Task task) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Accepting task...'),
+            ],
+          ),
+        ),
+      );
+
+      final result = await _taskService.acceptTask(task.id);
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show result dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(result['success'] ? 'Success!' : 'Error'),
+          content: Text(result['message']),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+      // If successful, refresh the tasks
+      if (result['success']) {
+        _loadHomeFeedData();
+      }
+    } catch (e) {
+      // Close loading dialog if open
+      Navigator.pop(context, true);
+      
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('Failed to accept task: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
