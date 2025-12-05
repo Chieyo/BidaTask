@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../domain/models/task_model.dart';
 import '../../services/task_service.dart';
 import '../widgets/background/animated_background.dart';
+import '../widgets/task/my_task_card.dart';
 
 class TaskManagerScreen extends StatefulWidget {
   const TaskManagerScreen({Key? key}) : super(key: key);
@@ -16,6 +17,7 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTicker
   final TaskService _taskService = TaskService();
   List<Task> _activeTasks = [];
   List<Task> _postedTasks = [];
+  List<Task> _completedTasks = [];
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -33,18 +35,44 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTicker
         _errorMessage = null;
       });
 
-      // Load both active tasks and posted tasks
-      final [activeTasks, postedTasks] = await Future.wait([
-        _taskService.fetchMyTasks(),
-        _taskService.fetchPostedTasks(),
-      ]);
+      // Load active tasks and posted tasks, then try completed tasks separately
+      try {
+        final [activeTasks, postedTasks] = await Future.wait([
+          _taskService.fetchMyTasks(),
+          _taskService.fetchPostedTasks(),
+        ]);
 
-      if (mounted) {
-        setState(() {
-          _activeTasks = activeTasks;
-          _postedTasks = postedTasks;
-          _isLoading = false;
-        });
+        final activeTaskList = (activeTasks as List<Task>?) ?? [];
+        final postedTaskList = (postedTasks as List<Task>?) ?? [];
+        
+        // Try to load completed tasks separately
+        List<Task> completedTasks = [];
+        try {
+          final completedResult = await _taskService.getCompletedTasks();
+          if (completedResult['success'] == true) {
+            completedTasks = (completedResult['tasks'] as List<dynamic>?)?.map((t) => Task.fromJson(t)).toList() ?? [];
+          }
+        } catch (e) {
+          print('Error loading completed tasks: $e');
+          // Continue without completed tasks if there's an error
+        }
+
+        if (mounted) {
+          setState(() {
+            _activeTasks = activeTaskList;
+            _postedTasks = postedTaskList;
+            _completedTasks = completedTasks;
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        print('Error in task manager loading: $e');
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Failed to load tasks. Please try again. Error: $e';
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -165,30 +193,13 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTicker
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: tasks.length,
-      itemBuilder: (context, index) => Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: ListTile(
-          onTap: () => _showTaskDetails(tasks[index]),
-          title: Text(
-            tasks[index].title,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Posted by: ${tasks[index].postedBy}'),
-              if (tasks[index].isTaken && tasks[index].assigneeName != null)
-                Text(
-                  'Taken by: ${tasks[index].assigneeName}',
-                  style: TextStyle(color: Colors.green[600]),
-                ),
-              Text('\$${tasks[index].price.toStringAsFixed(2)}'),
-            ],
-          ),
-          trailing: tasks[index].isUrgent
-              ? Icon(Icons.priority_high, color: Colors.red)
-              : null,
-        ),
+      itemBuilder: (context, index) => MyTaskCard(
+        task: tasks[index],
+        onTap: () => _showTaskDetails(tasks[index]),
+        // In task manager, we don't show action buttons - it's just for viewing
+        onMarkDone: null,
+        onConfirmCompletion: null,
+        onDelete: null,
       ),
     );
   }
@@ -253,11 +264,7 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTicker
       return task.dueDate!.isAfter(now);
     }).toList();
     
-    final completedTasks = allTasks.where((task) {
-      // For now, we don't have a completed status, so this will be empty
-      // TODO: Add completed status to Task model
-      return false;
-    }).toList();
+    final completedTasks = _completedTasks;
 
     return AnimatedBackground(
       child: Scaffold(

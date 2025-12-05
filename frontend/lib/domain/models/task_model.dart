@@ -16,6 +16,7 @@ class Task {
   final bool isTaken; // New field to track if task is taken
   final String? assigneeName; // Name of the person who took the task
   final String? assigneeAvatar; // Avatar of the person who took the task
+  final String taskStatus; // Status of the task: todo, pending_completion, completed
 
   Task({
     required this.id,
@@ -28,11 +29,12 @@ class Task {
     required this.postedBy,
     this.imageUrl,
     required this.category,
-    this.isMyTask = false,
-    this.isUrgent = false,
-    this.isTaken = false,
+    required this.isMyTask,
+    required this.isUrgent,
+    required this.isTaken,
     this.assigneeName,
     this.assigneeAvatar,
+    required this.taskStatus,
   });
 
   // Helper method to calculate time ago
@@ -98,6 +100,13 @@ class Task {
       isTaken: json['assignee_id'] != null || json['assigneeId'] != null,
       assigneeName: json['assigneeName'],
       assigneeAvatar: json['assigneeAvatar'],
+      taskStatus: json['task_status']?.toString() ?? json['status']?.toString() ?? 'todo',
     );
   }
+
+  // Helper property to check if task is completed
+  bool get isCompleted => taskStatus == 'completed';
+
+  // Helper property to check if task is pending completion
+  bool get isPendingCompletion => taskStatus == 'pending_completion';
 }

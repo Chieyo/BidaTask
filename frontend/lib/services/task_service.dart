@@ -217,7 +217,6 @@ class TaskService {
     }
   }
 
-  // Delete a task (only by owner)
   Future<Map<String, dynamic>> deleteTask(String taskId) async {
     try {
       final token = await _getToken();
@@ -246,6 +245,154 @@ class TaskService {
       return {
         'success': false,
         'message': 'Error deleting task: $e',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> markTaskAsDone(String taskId) async {
+    try {
+      final token = await _getToken();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/tasks/$taskId/complete'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Task marked as done successfully',
+        };
+      } else if (response.statusCode == 429) {
+        // Rate limit exceeded
+        return {
+          'success': false,
+          'message': 'Too many requests. Please wait a moment and try again.',
+        };
+      } else {
+        // Handle cases where response body might not be valid JSON
+        String errorMessage = 'Failed to mark task as done';
+        try {
+          final data = json.decode(response.body);
+          errorMessage = data['message'] ?? errorMessage;
+        } catch (e) {
+          errorMessage = 'Server error: ${response.statusCode}';
+        }
+        
+        return {
+          'success': false,
+          'message': errorMessage,
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error marking task as done: $e',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> confirmTaskCompletion(String taskId) async {
+    try {
+      final token = await _getToken();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/tasks/$taskId/confirm'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Task completion confirmed successfully',
+        };
+      } else if (response.statusCode == 429) {
+        // Rate limit exceeded
+        return {
+          'success': false,
+          'message': 'Too many requests. Please wait a moment and try again.',
+        };
+      } else {
+        // Handle cases where response body might not be valid JSON
+        String errorMessage = 'Failed to confirm task completion';
+        try {
+          final data = json.decode(response.body);
+          errorMessage = data['message'] ?? errorMessage;
+        } catch (e) {
+          errorMessage = 'Server error: ${response.statusCode}';
+        }
+        
+        return {
+          'success': false,
+          'message': errorMessage,
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error confirming task completion: $e',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> getCompletedTasks() async {
+    try {
+      final token = await _getToken();
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/tasks/completed'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'success') {
+          return {
+            'success': true,
+            'tasks': data['data'],
+          };
+        }
+      } else if (response.statusCode == 429) {
+        // Rate limit exceeded
+        return {
+          'success': false,
+          'message': 'Too many requests. Please wait a moment and try again.',
+        };
+      } else {
+        // Handle cases where response body might not be valid JSON
+        String errorMessage = 'Failed to fetch completed tasks';
+        try {
+          final data = json.decode(response.body);
+          errorMessage = data['message'] ?? errorMessage;
+        } catch (e) {
+          errorMessage = 'Server error: ${response.statusCode}';
+        }
+        
+        return {
+          'success': false,
+          'message': errorMessage,
+        };
+      }
+      
+      return {
+        'success': false,
+        'message': 'Failed to fetch completed tasks',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error fetching completed tasks: $e',
       };
     }
   }

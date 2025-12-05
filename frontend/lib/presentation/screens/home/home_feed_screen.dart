@@ -517,10 +517,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             onTap: () {
               // Handle task tap
             },
-            onMarkDone: () {
-              // Handle mark as done
-            },
-            // No onDelete callback for active tasks (tasks you've taken)
+            onMarkDone: (task.isTaken && !task.isMyTask) ? () => _markTaskDone(task) : null,
+            // No onDelete or confirm completion for active tasks (tasks you've taken)
           ),
         );
       },
@@ -621,15 +619,10 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             onTap: () {
               // Handle task tap
             },
-            onMarkDone: () {
-              // Handle mark as done
-            },
-            onDelete: () {
-              // Only show delete option for posted tasks (owned by user)
-              if (task.isMyTask && !task.isTaken) {
-                _showDeleteConfirmation(task);
-              }
-            },
+            // Only pass the relevant callback based on task state and user role
+            onMarkDone: (task.isTaken && !task.isMyTask && task.taskStatus == 'todo') ? () => _markTaskDone(task) : null,
+            onConfirmCompletion: (task.isMyTask && task.isPendingCompletion) ? () => _confirmTaskCompletion(task) : null,
+            onDelete: (task.isMyTask && !task.isTaken && task.taskStatus == 'todo') ? () => _showDeleteConfirmation(task) : null,
           ),
         );
       },
@@ -840,6 +833,136 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
 
     if (confirmed == true) {
       await _deleteTask(task);
+    }
+  }
+
+  Future<void> _markTaskDone(Task task) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Marking task as done...'),
+            ],
+          ),
+        ),
+      );
+
+      final result = await _taskService.markTaskAsDone(task.id);
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show result dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(result['success'] ? 'Success!' : 'Error'),
+          content: Text(result['message']),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+      // If successful, refresh the tasks
+      if (result['success']) {
+        // Refresh all task data
+        _loadHomeFeedData();
+        // Also trigger a global refresh if possible
+        setState(() {});
+      }
+    } catch (e) {
+      // Close loading dialog if open
+      Navigator.pop(context, true);
+      
+      // Show error dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('Failed to mark task as done: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmTaskCompletion(Task task) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Confirming task completion...'),
+            ],
+          ),
+        ),
+      );
+
+      final result = await _taskService.confirmTaskCompletion(task.id);
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show result dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(result['success'] ? 'Success!' : 'Error'),
+          content: Text(result['message']),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+      // If successful, refresh the tasks
+      if (result['success']) {
+        // Refresh all task data
+        _loadHomeFeedData();
+        // Also trigger a global refresh if possible
+        setState(() {});
+      }
+    } catch (e) {
+      // Close loading dialog if open
+      Navigator.pop(context, true);
+      
+      // Show error dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('Failed to confirm task completion: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
     }
   }
 

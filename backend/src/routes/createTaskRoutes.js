@@ -110,6 +110,7 @@ router.get('/', async (req, res) => {
     let query = supabase
       .from('tasks')
       .select('*')
+      .in('task_status', ['todo', 'pending_completion']) // Only show active tasks, not completed
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -151,7 +152,8 @@ router.get('/mine', verifyToken, async (req, res) => {
       .from('tasks')
       .select('*')
       .eq('assignee_id', req.user.userId)
-      .not('assignee_id', 'is', null);
+      .not('assignee_id', 'is', null)
+      .in('task_status', ['todo']); // Only show todo tasks (not pending or completed)
 
     if (acceptedError) {
       throw acceptedError;
@@ -377,6 +379,159 @@ router.post('/:id/accept', verifyToken, async (req, res) => {
   }
 });
 
+// POST /api/tasks/:taskId/complete - Mark task as done
+router.post('/:taskId/complete', verifyToken, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user.userId;
+
+    // First check if the task exists and if the user is the assignee
+    const { data: task, error: fetchError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
+
+    if (fetchError) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Task not found',
+      });
+    }
+
+    // Check if user is the assignee
+    if (task.assignee_id !== userId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the task assignee can mark it as done',
+      });
+    }
+
+    // Check if task is already completed
+    if (task.task_status === 'completed') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Task is already completed',
+      });
+    }
+
+    // Update task status to pending completion (waiting for owner confirmation)
+    console.log(`Attempting to update task ${taskId} status to pending_completion for user ${userId}`);
+    
+    const { data: updatedTask, error: updateError } = await supabase
+      .from('tasks')
+      .update({
+        task_status: 'pending_completion',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', taskId)
+      .select();
+
+    console.log('Update result:', { updatedTask, updateError });
+
+    if (updateError) {
+      console.error('Error updating task:', updateError);
+      return res.status(500).json({
+        status: 'error',
+        message: `Failed to mark task as done: ${updateError.message}`,
+      });
+    }
+
+    if (!updatedTask || updatedTask.length === 0) {
+      console.error('No rows updated - task may not exist or user not authorized');
+      return res.status(400).json({
+        status: 'error',
+        message: 'Task not found or you are not authorized to mark it as done',
+      });
+    }
+
+    console.log(`Task ${taskId} marked as pending completion by user ${userId}`);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Task submitted for completion - waiting for owner confirmation',
+      task: updatedTask[0],
+    });
+  } catch (error) {
+    console.error('Error in complete task endpoint:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+});
+
+// POST /api/tasks/:taskId/confirm - Owner confirms task completion
+router.post('/:taskId/confirm', verifyToken, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user.userId;
+
+    // First check if the task exists and if the user is the owner
+    const { data: task, error: fetchError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
+
+    if (fetchError) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Task not found',
+      });
+    }
+
+    // Check if user is the owner
+    if (task.requester_id !== userId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the task owner can confirm completion',
+      });
+    }
+
+    // Check if task is in pending completion state
+    if (task.task_status !== 'pending_completion') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Task must be pending completion to confirm',
+      });
+    }
+
+    // Update task status to completed
+    const { data: updatedTask, error: updateError } = await supabase
+      .from('tasks')
+      .update({
+        task_status: 'completed',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', taskId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating task:', updateError);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to confirm task completion',
+      });
+    }
+
+    console.log(`Task ${taskId} confirmed as completed by owner ${userId}`);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Task completion confirmed successfully',
+      task: updatedTask,
+    });
+  } catch (error) {
+    console.error('Error in confirm task endpoint:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+});
+
 // DELETE /api/tasks/:taskId
 router.delete('/:taskId', verifyToken, async (req, res) => {
   try {
@@ -481,6 +636,39 @@ router.post('/cleanup/corrupted-tasks', async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: error.message
+    });
+  }
+});
+
+// GET /api/tasks/completed
+router.get('/completed', verifyToken, async (req, res) => {
+  try {
+    // Get tasks completed by the user (tasks they worked on and were confirmed)
+    const { data: completedTasks, error: completedError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('assignee_id', req.user.userId)
+      .eq('task_status', 'completed');
+
+    if (completedError) {
+      throw completedError;
+    }
+    
+    const requesterLookup = await buildRequesterLookup(completedTasks || []);
+    const formatted = (completedTasks || []).map((task) => ({
+      ...formatTaskResponse(task, requesterLookup),
+      taskStatus: task.task_status,
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: formatted,
+    });
+  } catch (error) {
+    console.error('Error fetching completed tasks:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch completed tasks',
     });
   }
 });

@@ -6,6 +6,7 @@ class MyTaskCard extends StatelessWidget {
   final Task task;
   final VoidCallback onTap;
   final VoidCallback? onMarkDone;
+  final VoidCallback? onConfirmCompletion;
   final VoidCallback? onDelete;
 
   const MyTaskCard({
@@ -13,6 +14,7 @@ class MyTaskCard extends StatelessWidget {
     required this.task,
     required this.onTap,
     this.onMarkDone,
+    this.onConfirmCompletion,
     this.onDelete,
   });
 
@@ -65,55 +67,64 @@ class MyTaskCard extends StatelessWidget {
                   ),
                 ),
                 
-                // Action buttons
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Mark as Done button
-                    if (onMarkDone != null)
-                      OutlinedButton(
-                        onPressed: onMarkDone,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          side: BorderSide(color: Colors.grey[300]!),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        child: Text(
-                          'Mark as Done',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey[800],
-                          ),
-                        ),
+                // Action buttons - only show one relevant button
+                if (onMarkDone != null)
+                  OutlinedButton(
+                    onPressed: onMarkDone,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      side: BorderSide(color: Colors.grey[300]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                    
-                    // Delete button
-                    if (onDelete != null) ...[
-                      if (onMarkDone != null) const SizedBox(width: 8),
-                      OutlinedButton(
-                        onPressed: onDelete,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          side: BorderSide(color: Colors.red[300]!),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        child: Text(
-                          'Delete',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.red[800],
-                          ),
-                        ),
+                    ),
+                    child: Text(
+                      'Mark as Done',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[800],
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  )
+                else if (onConfirmCompletion != null)
+                  OutlinedButton(
+                    onPressed: onConfirmCompletion,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      side: BorderSide(color: Colors.green[300]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: Text(
+                      'Confirm Completion',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.green[800],
+                      ),
+                    ),
+                  )
+                else if (onDelete != null)
+                  OutlinedButton(
+                    onPressed: onDelete,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      side: BorderSide(color: Colors.red[300]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: Text(
+                      'Delete',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.red[800],
+                      ),
+                    ),
+                  ),
               ],
             ),
             
@@ -137,18 +148,30 @@ class MyTaskCard extends StatelessWidget {
             // Status and Due Date row
             Row(
               children: [
-                // In Progress status
+                // Task Status
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.lightBlue[50],
+                    color: task.isCompleted 
+                        ? Colors.green[50]
+                        : task.isPendingCompletion
+                            ? Colors.orange[50]
+                            : Colors.lightBlue[50],
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
-                    'In Progress',
+                    task.isCompleted 
+                        ? 'Completed'
+                        : task.isPendingCompletion
+                            ? 'Pending Completion'
+                            : 'In Progress',
                     style: GoogleFonts.poppins(
                       fontSize: 10,
-                      color: Colors.blue[700],
+                      color: task.isCompleted 
+                          ? Colors.green[700]
+                          : task.isPendingCompletion
+                              ? Colors.orange[700]
+                              : Colors.blue[700],
                       fontWeight: FontWeight.w500,
                     ),
                   ),
