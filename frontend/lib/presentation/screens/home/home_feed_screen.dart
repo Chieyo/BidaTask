@@ -213,12 +213,12 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildUserTasksList(
+                _buildActiveTasksList(
                   _activeTasks,
                   'No active tasks yet',
                   isLoading: false,
                 ),
-                _buildUserTasksList(
+                _buildPostedTasksList(
                   _postedTasks,
                   'No posted tasks yet',
                   isLoading: _isLoadingPostedTasks,
@@ -426,7 +426,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
     }).toList();
   }
 
-  Widget _buildUserTasksList(
+  Widget _buildActiveTasksList(
     List<Task> tasks,
     String emptyMessage, {
     bool isLoading = false,
@@ -519,6 +519,116 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
             },
             onMarkDone: () {
               // Handle mark as done
+            },
+            // No onDelete callback for active tasks (tasks you've taken)
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPostedTasksList(
+    List<Task> tasks,
+    String emptyMessage, {
+    bool isLoading = false,
+    String? errorMessage,
+    Future<void> Function()? onRetry,
+  }) {
+    if (isLoading) {
+      return _buildStatusCard(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Loading tasks...',
+              style: GoogleFonts.poppins(
+                color: Colors.grey[600],
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (errorMessage != null) {
+      return _buildStatusCard(
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 32, color: Colors.red[300]),
+            const SizedBox(height: 8),
+            Text(
+              'Failed to load tasks',
+              style: GoogleFonts.poppins(
+                color: Colors.red[600],
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'We could not load this list. Please try again.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                color: Colors.grey[600],
+                fontSize: 12,
+              ),
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: onRetry,
+                child: const Text('Retry'),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    if (tasks.isEmpty) {
+      return _buildStatusCard(
+        Center(
+          child: Text(
+            emptyMessage,
+            style: GoogleFonts.poppins(
+              color: Colors.grey[600],
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 8),
+      itemCount: tasks.length,
+      itemBuilder: (context, index) {
+        final task = tasks[index];
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: MyTaskCard(
+            task: task,
+            onTap: () {
+              // Handle task tap
+            },
+            onMarkDone: () {
+              // Handle mark as done
+            },
+            onDelete: () {
+              // Only show delete option for posted tasks (owned by user)
+              if (task.isMyTask && !task.isTaken) {
+                _showDeleteConfirmation(task);
+              }
             },
           ),
         );
@@ -683,7 +793,10 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
 
       // If successful, refresh the tasks
       if (result['success']) {
+        // Refresh all task data
         _loadHomeFeedData();
+        // Also trigger a global refresh if possible
+        setState(() {});
       }
     } catch (e) {
       // Close loading dialog if open
@@ -694,6 +807,93 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
         builder: (context) => AlertDialog(
           title: const Text('Error'),
           content: Text('Failed to accept task: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _showDeleteConfirmation(Task task) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Task'),
+        content: Text('Are you sure you want to delete "${task.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteTask(task);
+    }
+  }
+
+  Future<void> _deleteTask(Task task) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('Deleting task...'),
+            ],
+          ),
+        ),
+      );
+
+      final taskService = TaskService();
+      final result = await taskService.deleteTask(task.id);
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show result dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(result['success'] ? 'Success' : 'Error'),
+          content: Text(result['message']),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+      // If successful, refresh the tasks
+      if (result['success']) {
+        _loadHomeFeedData();
+      }
+    } catch (e) {
+      // Close loading dialog if open
+      Navigator.pop(context);
+      
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('Failed to delete task: $e'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),

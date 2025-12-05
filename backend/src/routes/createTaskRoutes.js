@@ -200,6 +200,7 @@ router.get('/posted', verifyToken, async (req, res) => {
     
     const formatted = (postedTasks || []).map((task) => {
       const assigneeProfile = assigneeLookup[task.assignee_id];
+      console.log(`Task ${task.id}: assignee_id=${task.assignee_id}, assigneeProfile=`, assigneeProfile);
       return {
         ...formatTaskResponse(task, requesterLookup),
         isMine: true, // All tasks here are posted by the user
@@ -292,14 +293,6 @@ router.post('/:id/accept', verifyToken, async (req, res) => {
       });
     }
 
-    // Check if task is already accepted
-    if (task.task_status !== 'todo') {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Task is no longer available',
-      });
-    }
-
     // Check if user is trying to accept their own task
     if (task.requester_id === userId) {
       return res.status(400).json({
@@ -308,21 +301,57 @@ router.post('/:id/accept', verifyToken, async (req, res) => {
       });
     }
 
-    // Update task - assign to user
-    const { data: updatedTask, error: updateError } = await supabase
+    // Check current state before update
+    console.log(`Task ${taskId} current state: assignee_id=${task.assignee_id}`);
+    console.log(`User ${userId} attempting to accept task ${taskId}`);
+    
+    // Create fresh Supabase client to avoid caching issues
+    const freshSupabase = require('../config/supabase');
+    
+    // Double-check current state with fresh query
+    const { data: freshTask, error: freshError } = await freshSupabase
+      .from('tasks')
+      .select('assignee_id, requester_id')
+      .eq('id', taskId)
+      .single();
+    
+    console.log('Fresh task data:', freshTask);
+    
+    if (freshError || !freshTask) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Task not found',
+      });
+    }
+    
+    // If task is already taken, return error
+    if (freshTask.assignee_id !== null) {
+      console.log(`Task ${taskId} already taken by ${freshTask.assignee_id}`);
+      return res.status(400).json({
+        status: 'error',
+        message: 'Task is no longer available',
+      });
+    }
+    
+    // Force update without any conditions
+    console.log(`Attempting to update task ${taskId} for user ${userId}`);
+    const { data: updatedTask, error: updateError } = await freshSupabase
       .from('tasks')
       .update({
         assignee_id: userId,
         updated_at: new Date().toISOString()
       })
       .eq('id', taskId)
-      .is('assignee_id', null) // Only update if not already taken
       .select();
+    
+    console.log('Force update result:', { updatedTask, updateError });
 
     if (updateError) {
       console.error('Error updating task:', updateError);
       throw updateError;
     }
+
+    console.log(`Updated ${updatedTask?.length || 0} rows`);
 
     if (!updatedTask || updatedTask.length === 0) {
       return res.status(400).json({
@@ -344,6 +373,114 @@ router.post('/:id/accept', verifyToken, async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: error.message || 'Internal server error',
+    });
+  }
+});
+
+// DELETE /api/tasks/:taskId
+router.delete('/:taskId', verifyToken, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user.userId;
+
+    // First check if the task exists and if the user is the owner
+    const { data: task, error: fetchError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
+
+    if (fetchError) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Task not found',
+      });
+    }
+
+    // Check if the user is the owner of the task
+    if (task.requester_id !== userId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the task owner can delete this task',
+      });
+    }
+
+    // Delete the task
+    const { error: deleteError } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', taskId);
+
+    if (deleteError) {
+      console.error('Error deleting task:', deleteError);
+      throw deleteError;
+    }
+
+    console.log(`Task ${taskId} deleted by owner ${userId}`);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Task deleted successfully',
+    });
+
+  } catch (error) {
+    console.error('Error deleting task:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error',
+    });
+  }
+});
+
+// DEBUG: Get all tasks with their assignee info
+router.get('/debug/tasks', async (req, res) => {
+  try {
+    const { data: allTasks, error } = await supabase
+      .from('tasks')
+      .select('id, task_title, assignee_id, requester_id, task_status');
+    
+    if (error) throw error;
+    
+    console.log('All tasks:', allTasks);
+    
+    res.status(200).json({
+      status: 'success',
+      data: allTasks
+    });
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
+// CLEANUP: Reset corrupted tasks (no auth required for testing)
+router.post('/cleanup/corrupted-tasks', async (req, res) => {
+  try {
+    // Reset all tasks that have assignee_id but task_status is still 'todo'
+    // This fixes the corruption from the previous bug
+    const { data: updatedTasks, error } = await supabase
+      .from('tasks')
+      .update({ assignee_id: null })
+      .eq('task_status', 'todo')
+      .not('assignee_id', 'is', null);
+
+    if (error) throw error;
+
+    console.log(`Cleaned up ${updatedTasks?.length || 0} corrupted tasks`);
+
+    res.status(200).json({
+      status: 'success',
+      message: `Cleaned up ${updatedTasks?.length || 0} corrupted tasks`,
+      data: updatedTasks
+    });
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
     });
   }
 });

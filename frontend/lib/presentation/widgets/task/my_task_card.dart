@@ -6,12 +6,14 @@ class MyTaskCard extends StatelessWidget {
   final Task task;
   final VoidCallback onTap;
   final VoidCallback? onMarkDone;
+  final VoidCallback? onDelete;
 
   const MyTaskCard({
     super.key,
     required this.task,
     required this.onTap,
     this.onMarkDone,
+    this.onDelete,
   });
 
   @override
@@ -63,25 +65,54 @@ class MyTaskCard extends StatelessWidget {
                   ),
                 ),
                 
-                // Mark as Done button
-                if (onMarkDone != null)
-                OutlinedButton(
-                  onPressed: onMarkDone,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    side: BorderSide(color: Colors.grey[300]!),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  child: Text(
-                    'Mark as Done',
-                    style: GoogleFonts.poppins(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[800],
-                    ),
-                  ),
+                // Action buttons
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Mark as Done button
+                    if (onMarkDone != null)
+                      OutlinedButton(
+                        onPressed: onMarkDone,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          side: BorderSide(color: Colors.grey[300]!),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        child: Text(
+                          'Mark as Done',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ),
+                    
+                    // Delete button
+                    if (onDelete != null) ...[
+                      if (onMarkDone != null) const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: onDelete,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          side: BorderSide(color: Colors.red[300]!),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        child: Text(
+                          'Delete',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.red[800],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

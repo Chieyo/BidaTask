@@ -98,7 +98,7 @@ class TaskService {
         final List<dynamic> tasks = data['data'] ?? [];
         print('Raw tasks count: ${tasks.length}');
         final mappedTasks = tasks
-            .map((taskJson) => _mapTaskFromJson(taskJson))
+            .map((taskJson) => Task.fromJson(taskJson))
             .whereType<Task>()
             .toList();
         print('Mapped tasks count: ${mappedTasks.length}');
@@ -129,7 +129,7 @@ class TaskService {
       if (response.statusCode == 200 && data['status'] == 'success') {
         final List<dynamic> tasks = data['data'] ?? [];
         return tasks
-            .map((taskJson) => _mapTaskFromJson(taskJson, isMineOverride: false))
+            .map((taskJson) => Task.fromJson(taskJson))
             .whereType<Task>()
             .toList();
       }
@@ -157,7 +157,7 @@ class TaskService {
       if (response.statusCode == 200 && data['status'] == 'success') {
         final List<dynamic> tasks = data['data'] ?? [];
         return tasks
-            .map((taskJson) => _mapTaskFromJson(taskJson, isMineOverride: true))
+            .map((taskJson) => Task.fromJson(taskJson, isMineOverride: true))
             .whereType<Task>()
             .toList();
       }
@@ -168,35 +168,7 @@ class TaskService {
     }
   }
 
-  Task? _mapTaskFromJson(Map<String, dynamic>? json, {bool isMineOverride = false}) {
-    if (json == null) return null;
-
-    final price = _toDouble(json['reward']);
-    final postedTime = DateTime.tryParse('${json['createdAt'] ?? json['created_at']}') ?? DateTime.now();
-    final dueDateRaw = json['dueDate'];
-    final dueDate = dueDateRaw != null ? DateTime.tryParse('$dueDateRaw') : null;
-    final category = (json['category'] ?? json['task_category'] ?? 'Misc').toString();
-    final priority = (json['priority'] ?? json['task_priority'] ?? '').toString().toLowerCase();
-    final requesterName = json['requesterName'] ?? 'Task Owner';
-
-    return Task(
-      id: json['id'] ?? '',
-      title: json['title'] ?? json['task_title'] ?? 'Untitled Task',
-      description: json['description'] ?? json['task_description'] ?? 'No description provided.',
-      price: price,
-      postedTime: postedTime,
-      dueDate: dueDate,
-      location: json['location'] ?? json['locationName'] ?? json['location_name'] ?? 'No location specified',
-      postedBy: requesterName,
-      category: category,
-      isMyTask: isMineOverride || (json['isMine'] == true),
-      isUrgent: priority == 'high',
-      isTaken: json['assignee_id'] != null || json['assigneeId'] != null,
-      assigneeName: json['assigneeName'],
-      assigneeAvatar: json['assigneeAvatar'],
-    );
-  }
-
+  
   double _toDouble(dynamic value) {
     if (value == null) return 0;
     if (value is double) return value;
@@ -241,6 +213,39 @@ class TaskService {
       return {
         'success': false,
         'message': 'Error accepting task: $e',
+      };
+    }
+  }
+
+  // Delete a task (only by owner)
+  Future<Map<String, dynamic>> deleteTask(String taskId) async {
+    try {
+      final token = await _getToken();
+      
+      final response = await http.delete(
+        Uri.parse('$baseUrl/tasks/$taskId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': 'Task deleted successfully',
+        };
+      } else {
+        final data = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to delete task',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error deleting task: $e',
       };
     }
   }
