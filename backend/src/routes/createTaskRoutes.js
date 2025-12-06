@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabase');
+const NotificationService = require('../services/notificationService');
 
 // Middleware to verify JWT
 const verifyToken = (req, res, next) => {
@@ -153,7 +154,8 @@ router.get('/mine', verifyToken, async (req, res) => {
       .select('*')
       .eq('assignee_id', req.user.userId)
       .not('assignee_id', 'is', null)
-      .in('task_status', ['todo', 'pending_completion']); // Show active tasks and pending confirmation tasks
+      .in('task_status', ['todo', 'pending_completion']) // Show active tasks and pending confirmation tasks
+      .order('created_at', { ascending: false }); // Sort by newest first
 
     if (acceptedError) {
       throw acceptedError;
@@ -189,7 +191,8 @@ router.get('/posted', verifyToken, async (req, res) => {
     const { data: postedTasks, error: postedError } = await supabase
       .from('tasks')
       .select('*')
-      .eq('requester_id', req.user.userId);
+      .eq('requester_id', req.user.userId)
+      .order('created_at', { ascending: false }); // Sort by newest first
 
     if (postedError) {
       throw postedError;
@@ -273,8 +276,190 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
+// Debug endpoint to check if Flutter app is reaching backend
+router.get('/debug', (req, res) => {
+  console.log('=== DEBUG: Flutter app reached backend ===');
+  res.status(200).json({
+    status: 'success',
+    message: 'Backend is reachable from Flutter app',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Test endpoint for task acceptance with fake auth
+router.post('/test-accept-with-auth/:taskId', async (req, res) => {
+  console.log('=== TEST TASK ACCEPTANCE WITH AUTH ===');
+  try {
+    const taskId = req.params.taskId;
+    // Create a fake user object like the real auth middleware would
+    req.user = {
+      userId: '620372f3-a444-447d-9346-c5843442e478' // Different user as taker
+    };
+    
+    const userId = req.user.userId;
+    console.log(`User ${userId} attempting to accept task ${taskId}`);
+
+    // Check if task exists and is available
+    const { data: task, error: taskError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .maybeSingle();
+
+    if (taskError || !task) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Task not found',
+      });
+    }
+
+    console.log('Task found:', task.title);
+    console.log('Task requester ID:', task.requester_id);
+    console.log('Current user ID (taker):', userId);
+
+    // Update task to mark as accepted
+    const { data: updatedTask, error: updateError } = await supabase
+      .from('tasks')
+      .update({
+        assignee_id: userId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', taskId)
+      .select();
+
+    if (updateError) {
+      console.error('Error updating task:', updateError);
+      throw updateError;
+    }
+
+    console.log(`Task ${taskId} successfully accepted by user ${userId}`);
+    console.log('About to create notifications...');
+
+    // Create notifications for task acceptance
+    try {
+      console.log('Creating task acceptance notifications...');
+      console.log('Task details:', {
+        taskId,
+        title: task.task_title || task.title,
+        userId,
+        requesterId: task.requester_id
+      });
+      
+      await NotificationService.createTaskAcceptedNotification(
+        taskId,
+        task.task_title || task.title,
+        userId,
+        task.requester_id
+      );
+      console.log('Notifications created for task acceptance');
+    } catch (notificationError) {
+      console.error('Error creating notifications:', notificationError);
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Task accepted successfully',
+      taskOwner: task.requester_id,
+      taskTaker: userId,
+      data: updatedTask
+    });
+
+  } catch (error) {
+    console.error('Error in test task acceptance with auth:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error',
+    });
+  }
+});
+router.post('/test-accept/:taskId', async (req, res) => {
+  console.log('=== TEST TASK ACCEPTANCE ENDPOINT CALLED ===');
+  try {
+    const taskId = req.params.taskId;
+    const userId = '620372f3-a444-447d-9346-c5843442e478'; // Use different user as taker
+
+    console.log(`Test: User ${userId} attempting to accept task ${taskId}`);
+
+    // Check if task exists and is available
+    const { data: task, error: taskError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .maybeSingle();
+
+    if (taskError || !task) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Task not found',
+      });
+    }
+
+    console.log('Task found:', task.title);
+    console.log('Task requester ID:', task.requester_id);
+    console.log('Current user ID (taker):', userId);
+
+    // Update task to mark as accepted
+    const { data: updatedTask, error: updateError } = await supabase
+      .from('tasks')
+      .update({
+        assignee_id: userId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', taskId)
+      .select();
+
+    if (updateError) {
+      console.error('Error updating task:', updateError);
+      throw updateError;
+    }
+
+    console.log(`Task ${taskId} successfully accepted by user ${userId}`);
+    console.log('About to create notifications...');
+
+    // Create notifications for task acceptance
+    try {
+      console.log('Creating task acceptance notifications...');
+      console.log('Task details:', {
+        taskId,
+        title: task.task_title || task.title,
+        userId,
+        requesterId: task.requester_id
+      });
+      
+      await NotificationService.createTaskAcceptedNotification(
+        taskId,
+        task.task_title || task.title,
+        userId,
+        task.requester_id
+      );
+      console.log('Notifications created for task acceptance');
+    } catch (notificationError) {
+      console.error('Error creating notifications:', notificationError);
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Task accepted successfully',
+      taskOwner: task.requester_id,
+      taskTaker: userId,
+      data: updatedTask
+    });
+
+  } catch (error) {
+    console.error('Error in test task acceptance:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error',
+    });
+  }
+});
+
 // POST /api/tasks/:id/accept
 router.post('/:id/accept', verifyToken, async (req, res) => {
+  console.log('=== ACTUAL TASK ACCEPTANCE ENDPOINT CALLED ===');
+  console.log('Request params:', req.params);
+  console.log('Request user:', req.user);
+  
   try {
     const taskId = req.params.id;
     const userId = req.user.userId;
@@ -363,6 +548,31 @@ router.post('/:id/accept', verifyToken, async (req, res) => {
     }
 
     console.log(`Task ${taskId} successfully accepted by user ${userId}`);
+    console.log('About to create notifications...');
+    console.log('Task requester ID:', task.requester_id);
+    console.log('Current user ID:', userId);
+
+    // Create notifications for task acceptance
+    try {
+      console.log('Creating task acceptance notifications...');
+      console.log('Task details:', {
+        taskId,
+        title: task.task_title || task.title,
+        userId,
+        requesterId: task.requester_id
+      });
+      
+      await NotificationService.createTaskAcceptedNotification(
+        taskId,
+        task.task_title || task.title,
+        userId,
+        task.requester_id
+      );
+      console.log('Notifications created for task acceptance');
+    } catch (notificationError) {
+      console.error('Error creating notifications:', notificationError);
+      // Don't fail the request if notifications fail
+    }
 
     res.status(200).json({
       status: 'success',
@@ -446,6 +656,20 @@ router.post('/:taskId/complete', verifyToken, async (req, res) => {
     }
 
     console.log(`Task ${taskId} marked as pending completion by user ${userId}`);
+
+    // Create notifications for task completion
+    try {
+      await NotificationService.createTaskCompletedNotification(
+        taskId,
+        task.task_title || task.title,
+        userId,
+        task.requester_id
+      );
+      console.log('Notifications created for task completion');
+    } catch (notificationError) {
+      console.error('Error creating notifications:', notificationError);
+      // Don't fail the request if notifications fail
+    }
 
     res.status(200).json({
       status: 'success',

@@ -174,7 +174,7 @@ List<Task> _allTasks = [];
       // Add task markers
       debugPrint('Processing ${tasks.length} tasks for markers...');
       for (var task in tasks) {
-        debugPrint('Task: ${task.title}, Category: ${task.category}, Location: ${task.location}');
+        debugPrint('Task: ${task.title}, Category: ${task.category}, Location: ${task.location}, isTaken: ${task.isTaken}');
         latlng.LatLng location;
         
         // Parse location from PostGIS POINT format
@@ -200,16 +200,32 @@ List<Task> _allTasks = [];
         debugPrint('Creating marker at: ${location.latitude}, ${location.longitude}');
         debugPrint('Current position: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}');
         
-        // Add offset if marker is at current position to make it visible
+        // VERY LARGE offset for ALL markers to guarantee no overlap
+        // Create a grid-based offset system with much larger spacing
+        final taskIdHash = task.id.hashCode % 25; // 5x5 grid for more positions
+        final gridX = taskIdHash % 5; // 0, 1, 2, 3, 4
+        final gridY = (taskIdHash / 5).floor(); // 0, 1, 2, 3, 4
+        
+        // VERY LARGE offset (each cell is about 500m x 500m)
+        final offsetLat = (gridY - 2) * 0.005; // -2.5 to +2.5
+        final offsetLng = (gridX - 2) * 0.005; // -2.5 to +2.5
+        
+        location = latlng.LatLng(
+          location.latitude + offsetLat,
+          location.longitude + offsetLng,
+        );
+        
+        debugPrint('Added VERY LARGE grid offset for task "${task.title}": grid($gridX,$gridY), offset($offsetLat,$offsetLng)');
+        
+        // Also handle current position offset
         if (_currentPosition != null && 
             (location.latitude - _currentPosition!.latitude).abs() < 0.001 &&
             (location.longitude - _currentPosition!.longitude).abs() < 0.001) {
-          debugPrint('Marker at current position, adding offset');
-          // Add a small random offset to make markers at same location visible
+          debugPrint('Marker at current position, adding additional offset');
           final randomOffset = (task.title.hashCode % 10) * 0.0001;
           location = latlng.LatLng(
-            location.latitude + 0.0002 + randomOffset, // North offset
-            location.longitude + 0.0002 + randomOffset, // East offset
+            location.latitude + 0.0002 + randomOffset,
+            location.longitude + 0.0002 + randomOffset,
           );
           debugPrint('Adjusted marker location to: ${location.latitude}, ${location.longitude}');
         }
@@ -244,6 +260,7 @@ List<Task> _allTasks = [];
             ),
           ),
         );
+        print('Created marker for task "${task.title}" - isTaken: ${task.isTaken}, color: ${task.isTaken ? "gray" : "blue"}');
         _markers.add(marker);
         debugPrint('Marker added for task: ${task.title}. Total markers: ${_markers.length}');
       }
@@ -680,9 +697,6 @@ List<Task> _allTasks = [];
       // Close loading dialog
       Navigator.pop(context);
 
-      // Close task details bottom sheet
-      Navigator.pop(context);
-
       // Show result dialog
       showDialog(
         context: context,
@@ -691,22 +705,23 @@ List<Task> _allTasks = [];
           content: Text(result['message']),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () async {
+                Navigator.pop(context); // Close result dialog
+                if (result['success']) {
+                  Navigator.pop(context); // Close task details bottom sheet
+                  print('Task accepted successfully, refreshing tasks...');
+                  await _fetchAndDisplayTasks(); // Refresh tasks
+                  print('Tasks refreshed, checking if marker updated');
+                }
+              },
               child: const Text('OK'),
             ),
           ],
         ),
       );
-
-      // If successful, close bottom sheet and refresh the tasks
-      if (result['success']) {
-        Navigator.pop(context); // Close the bottom sheet
-        _fetchAndDisplayTasks();
-      }
     } catch (e) {
-      // Close any open dialogs
-      Navigator.pop(context, true);
-      Navigator.pop(context, true);
+      // Close loading dialog if open
+      Navigator.pop(context);
       
       showDialog(
         context: context,
