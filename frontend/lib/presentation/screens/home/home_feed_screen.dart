@@ -677,7 +677,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
 
   Widget _buildBottomNavigationBar() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(30),
@@ -692,11 +692,12 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
       child: ClipRRect(
         borderRadius: BorderRadius.circular(30),
         child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
+          currentIndex: 0, // Always show first item as selected when on home screen
           onTap: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
+            // Don't update _selectedIndex to prevent highlighting other icons
+            if (index == 0) {
+              _loadHomeFeedData();
+            }
             if (index == 0) {
               // Home - Refresh the feed
               _loadHomeFeedData();
@@ -718,21 +719,34 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
           backgroundColor: Colors.white,
           selectedItemColor: const Color(0xFF1E88E5),
           unselectedItemColor: Colors.grey[600],
+          selectedIconTheme: const IconThemeData(
+            color: Color(0xFF1E88E5),
+          ),
+          unselectedIconTheme: IconThemeData(
+            color: Colors.grey[600],
+          ),
           showSelectedLabels: false,
           showUnselectedLabels: false,
           elevation: 0,
           items: [
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.home_filled, size: 26),
+            BottomNavigationBarItem(
+              icon: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE3F2FD),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.home_filled, size: 22),
+              ),
               label: 'Home',
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.map_outlined, size: 26),
+              icon: const Icon(Icons.map_outlined, size: 22),
               label: 'Map',
             ),
             BottomNavigationBarItem(
               icon: Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: const BoxDecoration(
                   color: Color(0xFFFFD700), // Gold color
                   shape: BoxShape.circle,
@@ -744,16 +758,16 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
                     ),
                   ],
                 ),
-                child: const Icon(Icons.add, color: Colors.black87, size: 28),
+                child: const Icon(Icons.add, color: Colors.black87, size: 24),
               ),
               label: 'New Task',
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.check_circle_outline, size: 26),
+              icon: const Icon(Icons.check_circle_outline, size: 22),
               label: 'Tasks',
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline, size: 26),
+              icon: const Icon(Icons.person_outline, size: 22),
               label: 'Profile',
             ),
           ],

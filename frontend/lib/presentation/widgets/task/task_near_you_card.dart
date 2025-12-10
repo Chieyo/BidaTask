@@ -149,7 +149,7 @@ class TaskNearYouCard extends StatelessWidget {
                   const SizedBox(width: 2),
                   Expanded(
                     child: Text(
-                      'by ₱{task.postedBy.split(' ').first}',
+                      'by ${task.postedBy.split(' ').first}',
                       style: GoogleFonts.poppins(
                         fontSize: 8,
                         color: Colors.grey[600],
