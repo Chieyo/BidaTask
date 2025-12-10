@@ -151,6 +151,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> with SingleTickerProvid
         extendBody: true,
         backgroundColor: Colors.transparent,  // Make scaffold transparent
         appBar: AppBar(
+          automaticallyImplyLeading: false,  // Remove back button
           backgroundColor: Colors.transparent,  // Transparent app bar
           elevation: 0,
           title: UserGreeting(

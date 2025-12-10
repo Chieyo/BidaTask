@@ -46,15 +46,16 @@ app.get('/health', (req, res) => {
 const authRoutes = require('./routes/authRoutes');
 const otpRoutes = require('./routes/otpRoutes');
 const taskRoutes = require('./routes/createTaskRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/otp', otpRoutes);
 // app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/notifications', notificationRoutes);
 // app.use('/api/bids', bidRoutes);
 // app.use('/api/payments', paymentRoutes);
-// app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use((req, res) => {

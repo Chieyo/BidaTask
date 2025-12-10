@@ -56,8 +56,7 @@ class Task {
   }
 
   // Helper method to format price
-  String get formattedPrice => '\$${price.toStringAsFixed(2)}';
-
+String get formattedPrice => '₱${price.toStringAsFixed(0)}';
   // Helper method to calculate distance (you'll implement the actual calculation later)
   String getDistanceFrom(LatLng userLocation) {
     // This is a placeholder - you'll implement actual distance calculation

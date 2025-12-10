@@ -8,6 +8,9 @@ enum NotificationType {
   
   /// Warning notification
   warning,
+  
+  /// Task-related notification
+  task,
 }
 
 /// Represents a single notification item in the app
