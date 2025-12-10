@@ -140,7 +140,7 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> with SingleTicker
               style: TextStyle(color: Colors.grey[600]),
             ),
             Text(
-              'Price: \$${task.price.toStringAsFixed(2)}',
+              'Price: \₱${task.price.toStringAsFixed(2)}',
               style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 16),
