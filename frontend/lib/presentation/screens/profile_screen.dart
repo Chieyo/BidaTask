@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../services/auth_service.dart';
 import '../widgets/user_avatar.dart';
+import '../widgets/background/animated_background.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -148,46 +149,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF2196F3),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'My Profile',
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          // Animated background in header
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 200, // Height of the header area
+            child: AnimatedBackground(
+              child: Container(
+                color: const Color(0xFF2196F3).withOpacity(0.1),
+              ),
+            ),
           ),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onPressed: () {},
+          // Main content
+          Column(
+            children: [
+              // App bar (fixed at top)
+              AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                title: Text(
+                  'My Profile',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                centerTitle: true,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.more_vert, color: Colors.white),
+                    onPressed: () {},
+                  ),
+                ],
+              ),
+              // Scrollable content
+              Expanded(
+                child: Container(
+                  color: Colors.white,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        // Profile header at the top of scrollable content
+                        _buildProfileHeader(),
+                        const SizedBox(height: 16),
+                        // Rest of the content
+                        _buildPersonalInfoCard(),
+                        const SizedBox(height: 16),
+                        _buildPrimaryCategoriesCard(),
+                        const SizedBox(height: 16),
+                        _buildWalletCard(),
+                        const SizedBox(height: 16),
+                        _buildSettingsCard(),
+                        const SizedBox(height: 24),
+                        _buildLogoutButton(),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildProfileHeader(),
-            const SizedBox(height: 16),
-            _buildPersonalInfoCard(),
-            const SizedBox(height: 16),
-            _buildPrimaryCategoriesCard(),
-            const SizedBox(height: 16),
-            _buildWalletCard(),
-            const SizedBox(height: 16),
-            _buildSettingsCard(),
-            const SizedBox(height: 24),
-            _buildLogoutButton(),
-            const SizedBox(height: 16),
-          ],
-        ),
       ),
     );
   }
@@ -293,7 +325,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final age = user['age']?.toString() ?? 'Not specified';
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -371,7 +403,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildPrimaryCategoriesCard() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -510,7 +542,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildWalletCard() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -555,7 +587,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildSettingsCard() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
