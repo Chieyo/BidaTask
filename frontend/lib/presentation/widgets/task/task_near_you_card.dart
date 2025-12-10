@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../../domain/models/task_model.dart';
 
 class TaskNearYouCard extends StatelessWidget {
@@ -77,8 +78,12 @@ class TaskNearYouCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
-                    '₱${task.price.toStringAsFixed(0)}',
-                    style: GoogleFonts.poppins(
+                    NumberFormat.currency(
+                      locale: 'fil_PH',
+                      symbol: '₱',
+                      decimalDigits: 0,
+                    ).format(task.price),
+                    style: GoogleFonts.roboto(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: const Color(0xFF1E88E5),
